@@ -1,0 +1,121 @@
+[
+  {
+    "id": "c_001",
+    "type": "decision",
+    "statement": "The frontend is built with React and Vite.",
+    "status": "verified",
+    "evidence": [
+      {
+        "quote": "...frontend will be React with Vite, fast to set up...",
+        "source": "meeting-notes-01.md",
+        "chunk": 4,
+        "date": "2026-02-03"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "accepted", "by": "Lead", "at": "2026-03-02T18:40:00" },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_002",
+    "type": "decision",
+    "statement": "The team chose PostgreSQL because the reporting queries need joins.",
+    "status": "conflicting",
+    "evidence": [
+      {
+        "quote": "...going with Postgres, the reporting queries need joins...",
+        "source": "meeting-notes-03.md",
+        "chunk": 12,
+        "date": "2026-02-14"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "draft", "by": null, "at": null },
+    "nextAction": "migrate reporting views",
+    "conflictsWith": ["c_003"],
+    "inference": false
+  },
+  {
+    "id": "c_003",
+    "type": "decision",
+    "statement": "The team chose MongoDB because the data shape keeps changing.",
+    "status": "conflicting",
+    "evidence": [
+      {
+        "quote": "...let's just use Mongo, schema keeps changing every week...",
+        "source": "chat-export.md",
+        "chunk": 7,
+        "date": "2026-02-21"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "draft", "by": null, "at": null },
+    "nextAction": null,
+    "conflictsWith": ["c_002"],
+    "inference": false
+  },
+  {
+    "id": "c_004",
+    "type": "ownership",
+    "statement": "Riya appears to own the deployment.",
+    "status": "uncertain",
+    "evidence": [
+      {
+        "quote": "...Riya pushed the last deploy, ask her if it breaks...",
+        "source": "chat-export.md",
+        "chunk": 15,
+        "date": "2026-02-27"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "draft", "by": null, "at": null },
+    "nextAction": "confirm deployment owner with Riya",
+    "conflictsWith": [],
+    "inference": true
+  },
+  {
+    "id": "c_005",
+    "type": "risk_dependency",
+    "statement": "Deployment depends on a free-tier hosting plan that ends on 30 March.",
+    "status": "verified",
+    "evidence": [
+      {
+        "quote": "...free tier ends 30 March, after that we need a paid plan...",
+        "source": "issues-export.json",
+        "chunk": 9,
+        "date": "2026-02-25"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "edited", "by": "Lead", "at": "2026-03-03T10:15:00" },
+    "nextAction": "decide on a paid plan before 30 March",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_006",
+    "type": "open_question",
+    "statement": "Who owns the deployment credentials?",
+    "status": "missing",
+    "evidence": [],
+    "visibility": "team",
+    "review": { "state": "draft", "by": null, "at": null },
+    "nextAction": "ask the departing member before handover",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_007",
+    "type": "decision",
+    "statement": "Restricted: request access from reviewer",
+    "status": "verified",
+    "evidence": [],
+    "visibility": "restricted",
+    "review": { "state": "accepted", "by": "Lead", "at": "2026-03-02T18:45:00" },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  }
+]
