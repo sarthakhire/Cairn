@@ -174,6 +174,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 claim={claim}
                 onReview={onReview}
                 onEdit={onEdit}
+                canReview={canReview}
               />
             </div>
           </>
