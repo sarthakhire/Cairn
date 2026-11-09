@@ -18,12 +18,12 @@ function App() {
 
   const selectedClaim = claims.find((claim) => claim.id === selectedId) ?? null
 
-  function handleReview(id, state) {
+    function handleEdit(id, statement) {
     const at = new Date().toISOString().slice(0, 19)
     setClaims((current) =>
       current.map((claim) =>
         claim.id === id
-          ? { ...claim, review: { state, by: 'Lead', at } }
+          ? { ...claim, statement, review: { state: 'edited', by: 'Lead', at } }
           : claim
       )
     )
