@@ -8,7 +8,7 @@ import {
 import StatusBadge from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 
-function EvidenceDrawer({ claim, allClaims, onClose }) {
+function EvidenceDrawer({ claim, allClaims, onClose, onReview }) {
   const conflicts = claim
     ? allClaims.filter((c) => claim.conflictsWith.includes(c.id))
     : []
