@@ -96,8 +96,13 @@ function App() {
             </p>
 
             <div className="space-y-3">
-              {visibleClaims.map((claim) => (
-                <ClaimCard key={claim.id} claim={claim} onSelect={setSelectedId} />
+                {visibleClaims.map((claim, index) => (
+                <ClaimCard
+                  key={claim.id}
+                  claim={claim}
+                  onSelect={setSelectedId}
+                  index={index}
+                />
               ))}
               {visibleClaims.length === 0 && (
                 <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
