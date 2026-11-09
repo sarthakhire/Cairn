@@ -5,6 +5,7 @@ import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
+import StatsRow from '@/components/StatsRow'
 import { claimsForRole, canReview } from '@/lib/roles'
 
 const VIEWS = [
@@ -62,6 +63,7 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 p-6">
+        <StatsRow claims={roleClaims} />
         <div className="flex gap-4 border-b">
           {VIEWS.map((item) => (
             <button
