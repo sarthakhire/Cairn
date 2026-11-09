@@ -18,7 +18,18 @@ function App() {
 
   const selectedClaim = claims.find((claim) => claim.id === selectedId) ?? null
 
-    function handleEdit(id, statement) {
+  function handleReview(id, state) {
+    const at = new Date().toISOString().slice(0, 19)
+    setClaims((current) =>
+      current.map((claim) =>
+        claim.id === id
+          ? { ...claim, review: { state, by: 'Lead', at } }
+          : claim
+      )
+    )
+  }
+
+  function handleEdit(id, statement) {
     const at = new Date().toISOString().slice(0, 19)
     setClaims((current) =>
       current.map((claim) =>
@@ -64,9 +75,8 @@ function App() {
         claim={selectedClaim}
         allClaims={claims}
         onClose={() => setSelectedId(null)}
-        onReview={handleReview} 
+        onReview={handleReview}
         onEdit={handleEdit}
-        
       />
     </div>
   )
