@@ -1,10 +1,16 @@
+import { motion, useReducedMotion } from 'motion/react'
 import StatusBadge from '@/components/StatusBadge'
 
-function ClaimCard({ claim, onSelect }) {
+function ClaimCard({ claim, onSelect, index = 0 }) {
+  const reduceMotion = useReducedMotion()
+
   return (
-    <button
+    <motion.button
       type="button"
       onClick={() => onSelect(claim.id)}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.04 }}
       className="w-full rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/60"
     >
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
@@ -26,7 +32,7 @@ function ClaimCard({ claim, onSelect }) {
         <span>Visibility: {claim.visibility}</span>
         <span>Review: {claim.review.state}</span>
       </div>
-    </button>
+    </motion.button>
   )
 }
 
