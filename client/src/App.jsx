@@ -64,7 +64,9 @@ function App() {
         claim={selectedClaim}
         allClaims={claims}
         onClose={() => setSelectedId(null)}
-        onReview={handleReview}
+        onReview={handleReview} 
+        onEdit={handleEdit}
+        
       />
     </div>
   )
