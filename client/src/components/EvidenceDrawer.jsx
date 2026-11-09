@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import StatusBadge from '@/components/StatusBadge'
 
-function ReviewSection({ claim, onReview, onEdit }) {
+function ReviewSection({ claim, onReview, onEdit, canReview }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(claim.statement)
   const canEdit = claim.visibility !== 'restricted'
