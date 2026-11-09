@@ -85,7 +85,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview }) {
                 </section>
               )}
 
-              <section className="space-y-1">
+                            <section className="space-y-3">
                 <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
                   Review
                 </h3>
@@ -94,6 +94,18 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview }) {
                   {claim.review.by && ` by ${claim.review.by}`}
                   {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
                 </p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => onReview(claim.id, 'accepted')}>
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => onReview(claim.id, 'rejected')}
+                  >
+                    Reject
+                  </Button>
+                </div>
               </section>
             </div>
           </>
