@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -5,10 +6,79 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import StatusBadge from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
+import StatusBadge from '@/components/StatusBadge'
 
-function EvidenceDrawer({ claim, allClaims, onClose, onReview }) {
+function ReviewSection({ claim, onReview, onEdit }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(claim.statement)
+  const canEdit = claim.visibility !== 'restricted'
+
+  function save() {
+    const text = draft.trim()
+    if (!text) return
+    onEdit(claim.id, text)
+    setEditing(false)
+  }
+
+  function cancel() {
+    setDraft(claim.statement)
+    setEditing(false)
+  }
+
+  return (
+    <section className="space-y-3">
+      <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
+        Review
+      </h3>
+      <p className="text-sm">
+        {claim.review.state}
+        {claim.review.by && ` by ${claim.review.by}`}
+        {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
+      </p>
+
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={4}
+            aria-label="Edit claim statement"
+            className="w-full rounded-md border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={save}>
+              Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => onReview(claim.id, 'accepted')}>
+            Accept
+          </Button>
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              Edit
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onReview(claim.id, 'rejected')}
+          >
+            Reject
+          </Button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit }) {
   const conflicts = claim
     ? allClaims.filter((c) => claim.conflictsWith.includes(c.id))
     : []
@@ -85,28 +155,12 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview }) {
                 </section>
               )}
 
-                            <section className="space-y-3">
-                <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Review
-                </h3>
-                <p className="text-sm">
-                  {claim.review.state}
-                  {claim.review.by && ` by ${claim.review.by}`}
-                  {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => onReview(claim.id, 'accepted')}>
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => onReview(claim.id, 'rejected')}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              </section>
+              <ReviewSection
+                key={claim.id}
+                claim={claim}
+                onReview={onReview}
+                onEdit={onEdit}
+              />
             </div>
           </>
         )}
