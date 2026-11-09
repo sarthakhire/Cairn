@@ -6,6 +6,7 @@ import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
 import StatsRow from '@/components/StatsRow'
+import Hero from '@/components/Hero'  
 import { claimsForRole, canReview } from '@/lib/roles'
 
 const VIEWS = [
