@@ -118,4 +118,62 @@
     "conflictsWith": [],
     "inference": false
   }
+  ,
+  {
+    "id": "c_008",
+    "type": "risk_dependency",
+    "statement": "A partner club expects a working demo by 15 April, promised verbally by the previous lead.",
+    "status": "uncertain",
+    "evidence": [
+      {
+        "quote": "...told them we would show a demo by mid April, no need to write it down...",
+        "source": "leads-private-notes.md",
+        "chunk": 3,
+        "date": "2026-03-01"
+      }
+    ],
+    "visibility": "lead_only",
+    "review": { "state": "accepted", "by": "Lead", "at": "2026-03-04T09:30:00" },
+    "nextAction": "confirm the demo date with the partner club",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_009",
+    "type": "next_action",
+    "statement": "The reporting views need to be moved to the new schema.",
+    "status": "verified",
+    "evidence": [
+      {
+        "quote": "...next sprint we move the reporting views over, Aman has the branch...",
+        "source": "issues-export.json",
+        "chunk": 14,
+        "date": "2026-03-01"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "accepted", "by": "Lead", "at": "2026-03-04T09:35:00" },
+    "nextAction": "review Aman's migration branch",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_010",
+    "type": "next_action",
+    "statement": "The login page task is still in progress.",
+    "status": "uncertain",
+    "evidence": [
+      {
+        "quote": "...login page, in progress, assigned to Karan...",
+        "source": "tasks.csv",
+        "chunk": 2,
+        "date": "2026-01-20"
+      }
+    ],
+    "visibility": "team",
+    "review": { "state": "rejected", "by": "Lead", "at": "2026-03-04T09:40:00" },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  }
 ]
