@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import claims from '@/mock/claims.json'
+import initialClaims from '@/mock/claims.json'
 import ClaimCard from '@/components/ClaimCard'
 import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
 
 function App() {
+  const [claims, setClaims] = useState(initialClaims)
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
@@ -16,6 +17,17 @@ function App() {
   )
 
   const selectedClaim = claims.find((claim) => claim.id === selectedId) ?? null
+
+  function handleReview(id, state) {
+    const at = new Date().toISOString().slice(0, 19)
+    setClaims((current) =>
+      current.map((claim) =>
+        claim.id === id
+          ? { ...claim, review: { state, by: 'Lead', at } }
+          : claim
+      )
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -52,6 +64,7 @@ function App() {
         claim={selectedClaim}
         allClaims={claims}
         onClose={() => setSelectedId(null)}
+        onReview={handleReview}
       />
     </div>
   )
