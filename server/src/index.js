@@ -4,6 +4,13 @@ const app = require("./app");
 
 const PORT = process.env.PORT || 5000;
 
+if (!process.env.MONGO_URI) {
+  console.error(
+    "MONGO_URI is not set. Copy .env.example to .env (inside server/) and fill it in."
+  );
+  process.exit(1);
+}
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
