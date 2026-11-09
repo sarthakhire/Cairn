@@ -4,11 +4,18 @@ import ClaimCard from '@/components/ClaimCard'
 import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
+import FirstWeekPlan from '@/components/FirstWeekPlan'
 import { claimsForRole, canReview } from '@/lib/roles'
+
+const VIEWS = [
+  { value: 'claims', label: 'Claims' },
+  { value: 'plan', label: 'First-week plan' },
+]
 
 function App() {
   const [claims, setClaims] = useState(initialClaims)
   const [role, setRole] = useState('lead')
+  const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
@@ -53,28 +60,53 @@ function App() {
         </h1>
         <RoleSwitcher role={role} onChange={setRole} />
       </header>
+
       <main className="mx-auto max-w-3xl space-y-4 p-6">
-        <FilterBar
-          status={status}
-          type={type}
-          onStatusChange={setStatus}
-          onTypeChange={setType}
-        />
-
-        <p className="text-xs text-muted-foreground">
-          Showing {visibleClaims.length} of {roleClaims.length} claims
-        </p>
-
-        <div className="space-y-3">
-          {visibleClaims.map((claim) => (
-            <ClaimCard key={claim.id} claim={claim} onSelect={setSelectedId} />
+        <div className="flex gap-4 border-b">
+          {VIEWS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setView(item.value)}
+              aria-pressed={view === item.value}
+              className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
+                view === item.value
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {item.label}
+            </button>
           ))}
-          {visibleClaims.length === 0 && (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No claims match these filters.
-            </p>
-          )}
         </div>
+
+        {view === 'claims' ? (
+          <>
+            <FilterBar
+              status={status}
+              type={type}
+              onStatusChange={setStatus}
+              onTypeChange={setType}
+            />
+
+            <p className="text-xs text-muted-foreground">
+              Showing {visibleClaims.length} of {roleClaims.length} claims
+            </p>
+
+            <div className="space-y-3">
+              {visibleClaims.map((claim) => (
+                <ClaimCard key={claim.id} claim={claim} onSelect={setSelectedId} />
+              ))}
+              {visibleClaims.length === 0 && (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No claims match these filters.
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
+          <FirstWeekPlan claims={roleClaims} onSelect={setSelectedId} />
+        )}
       </main>
 
       <EvidenceDrawer
