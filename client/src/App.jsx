@@ -64,6 +64,7 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 p-6">
+        <Hero />
         <StatsRow claims={roleClaims} />
         <div className="flex gap-4 border-b">
           {VIEWS.map((item) => (
