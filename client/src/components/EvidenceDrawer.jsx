@@ -6,6 +6,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import StatusBadge from '@/components/StatusBadge'
+import { Button } from '@/components/ui/button'
 
 function EvidenceDrawer({ claim, allClaims, onClose }) {
   const conflicts = claim
