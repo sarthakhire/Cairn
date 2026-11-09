@@ -2,16 +2,20 @@ import { useState } from 'react'
 import claims from '@/mock/claims.json'
 import ClaimCard from '@/components/ClaimCard'
 import FilterBar from '@/components/FilterBar'
+import EvidenceDrawer from '@/components/EvidenceDrawer'
 
 function App() {
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
+  const [selectedId, setSelectedId] = useState(null)
 
   const visibleClaims = claims.filter(
     (claim) =>
       (status === 'all' || claim.status === status) &&
       (type === 'all' || claim.type === type)
   )
+
+  const selectedClaim = claims.find((claim) => claim.id === selectedId) ?? null
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -34,7 +38,7 @@ function App() {
 
         <div className="space-y-3">
           {visibleClaims.map((claim) => (
-            <ClaimCard key={claim.id} claim={claim} />
+            <ClaimCard key={claim.id} claim={claim} onSelect={setSelectedId} />
           ))}
           {visibleClaims.length === 0 && (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -43,6 +47,12 @@ function App() {
           )}
         </div>
       </main>
+
+      <EvidenceDrawer
+        claim={selectedClaim}
+        allClaims={claims}
+        onClose={() => setSelectedId(null)}
+      />
     </div>
   )
 }
