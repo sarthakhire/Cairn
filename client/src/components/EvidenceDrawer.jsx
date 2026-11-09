@@ -13,6 +13,20 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(claim.statement)
   const canEdit = claim.visibility !== 'restricted'
+    if (!canReview) {
+    return (
+      <section className="space-y-1">
+        <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
+          Review
+        </h3>
+        <p className="text-sm">
+          {claim.review.state}
+          {claim.review.by && ` by ${claim.review.by}`}
+          {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
+        </p>
+      </section>
+    )
+  }
 
   function save() {
     const text = draft.trim()
