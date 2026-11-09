@@ -1,8 +1,12 @@
 import StatusBadge from '@/components/StatusBadge'
 
-function ClaimCard({ claim }) {
+function ClaimCard({ claim, onSelect }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <button
+      type="button"
+      onClick={() => onSelect(claim.id)}
+      className="w-full rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/60"
+    >
       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
         <span className="uppercase tracking-wide">
           {claim.type.replace('_', ' ')}
@@ -22,7 +26,7 @@ function ClaimCard({ claim }) {
         <span>Visibility: {claim.visibility}</span>
         <span>Review: {claim.review.state}</span>
       </div>
-    </div>
+    </button>
   )
 }
 
