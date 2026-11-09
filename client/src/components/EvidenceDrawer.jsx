@@ -92,7 +92,7 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
   )
 }
 
-function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit }) {
+function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview }) {
   const conflicts = claim
     ? allClaims.filter((c) => claim.conflictsWith.includes(c.id))
     : []
