@@ -19,6 +19,7 @@ import UserBar from '@/components/UserBar'
 import { ROLES, claimsForRole, canReview } from '@/lib/roles'
 import { findGaps, questionFor } from '@/lib/gaps'
 import { summarize, countChanges } from '@/lib/versions'
+import { describeCounts, redact } from '@/lib/redact'
 
 function short(text) {
   return text.length > 80 ? `${text.slice(0, 80)}...` : text
@@ -33,6 +34,7 @@ function App() {
   const [acknowledgements, setAcknowledgements] = useState({})
   const [auditLog, setAuditLog] = useState([])
   const [sources, setSources] = useState([])
+  const [gapNotice, setGapNotice] = useState('')
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
@@ -92,18 +94,24 @@ function App() {
     setStatus('all')
     setType('all')
     setSelectedId(null)
+    setGapNotice('')
   }
 
   function handleLogout() {
     setUser(null)
     setSelectedId(null)
+    setGapNotice('')
   }
 
   function handleImport(imported) {
     setSources((current) => [{ ...imported, at: now() }, ...current])
+    const redactionNote =
+      imported.redactedTotal > 0
+        ? `, ${imported.redactedTotal} redacted (${describeCounts(imported.redactions)})`
+        : ', nothing redacted'
     log(
       'Source imported',
-      `${imported.name}, ${imported.sensitivity}, ${imported.chunkCount} chunks`
+      `${imported.name}, ${imported.sensitivity}, ${imported.chunkCount} chunks${redactionNote}`
     )
   }
 
@@ -211,10 +219,13 @@ function App() {
 
   function handleAnswer(id, answer) {
     const original = claims.find((claim) => claim.id === id)
-    const text = answer.trim()
-    if (!original || !text) return
+    const typed = answer.trim()
+    if (!original || !typed) return
 
+    const cleaned = redact(typed)
+    const text = cleaned.text
     const question = questionFor(original)
+
     const replacement = {
       id: `c_gap_${Date.now()}`,
       type: original.type,
@@ -238,7 +249,21 @@ function App() {
     setClaims((current) =>
       current.map((claim) => (claim.id === id ? replacement : claim))
     )
-    log('Gap answered', `${short(question)} Answer: ${short(text)}`)
+
+    if (cleaned.total > 0) {
+      setGapNotice(
+        `Your answer was saved, but ${cleaned.total} sensitive ${
+          cleaned.total === 1 ? 'item was' : 'items were'
+        } redacted (${describeCounts(cleaned.counts)}). Share secrets through a restricted source instead.`
+      )
+      log(
+        'Gap answered',
+        `${short(question)} Answer: ${short(text)} (${cleaned.total} redacted)`
+      )
+    } else {
+      setGapNotice('')
+      log('Gap answered', `${short(question)} Answer: ${short(text)}`)
+    }
   }
 
   if (!user) {
@@ -344,7 +369,17 @@ function App() {
             )}
 
             {activeView === 'gaps' && (
-              <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+              <>
+                {gapNotice && (
+                  <p
+                    role="status"
+                    className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400"
+                  >
+                    {gapNotice}
+                  </p>
+                )}
+                <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+              </>
             )}
 
             {activeView === 'sources' && (
