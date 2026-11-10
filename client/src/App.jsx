@@ -11,6 +11,7 @@ import ApprovalBar from '@/components/ApprovalBar'
 import AcknowledgeBar from '@/components/AcknowledgeBar'
 import AuditLog from '@/components/AuditLog'
 import VersionHistory from '@/components/VersionHistory'
+import Sources from '@/components/Sources'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
 import Login from '@/components/Login'
@@ -31,6 +32,7 @@ function App() {
   const [approval, setApproval] = useState(null)
   const [acknowledgements, setAcknowledgements] = useState({})
   const [auditLog, setAuditLog] = useState([])
+  const [sources, setSources] = useState([])
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
@@ -60,6 +62,7 @@ function App() {
             value: 'gaps',
             label: gaps.length > 0 ? `Gap questions (${gaps.length})` : 'Gap questions',
           },
+          { value: 'sources', label: 'Sources' },
           { value: 'versions', label: 'Versions' },
           { value: 'audit', label: 'Audit log' },
         ]
@@ -94,6 +97,14 @@ function App() {
   function handleLogout() {
     setUser(null)
     setSelectedId(null)
+  }
+
+  function handleImport(imported) {
+    setSources((current) => [{ ...imported, at: now() }, ...current])
+    log(
+      'Source imported',
+      `${imported.name}, ${imported.sensitivity}, ${imported.chunkCount} chunks`
+    )
   }
 
   function handleApprove() {
@@ -334,6 +345,10 @@ function App() {
 
             {activeView === 'gaps' && (
               <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+            )}
+
+            {activeView === 'sources' && (
+              <Sources sources={sources} onImport={handleImport} />
             )}
 
             {activeView === 'versions' && (
