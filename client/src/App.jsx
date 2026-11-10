@@ -10,12 +10,14 @@ import GapQuestions from '@/components/GapQuestions'
 import ApprovalBar from '@/components/ApprovalBar'
 import AcknowledgeBar from '@/components/AcknowledgeBar'
 import AuditLog from '@/components/AuditLog'
+import VersionHistory from '@/components/VersionHistory'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
 import Login from '@/components/Login'
 import UserBar from '@/components/UserBar'
 import { ROLES, claimsForRole, canReview } from '@/lib/roles'
 import { findGaps, questionFor } from '@/lib/gaps'
+import { summarize, countChanges } from '@/lib/versions'
 
 function short(text) {
   return text.length > 80 ? `${text.slice(0, 80)}...` : text
@@ -25,6 +27,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [claims, setClaims] = useState(initialClaims)
   const [resolutions, setResolutions] = useState([])
+  const [versions, setVersions] = useState([])
   const [approval, setApproval] = useState(null)
   const [acknowledgements, setAcknowledgements] = useState({})
   const [auditLog, setAuditLog] = useState([])
@@ -35,9 +38,15 @@ function App() {
 
   const role = user?.role
 
+  const snapshot = approval
+    ? (versions.find((item) => item.number === approval.version)?.claims ?? claims)
+    : claims
+  const source = role === 'lead' ? claims : snapshot
+
   const locked = role !== 'lead' && !approval
-  const roleClaims = locked ? [] : claimsForRole(claims, role)
+  const roleClaims = locked ? [] : claimsForRole(source, role)
   const pendingCount = claims.filter((claim) => claim.review.state === 'draft').length
+  const changedCount = approval ? countChanges(snapshot, claims) : 0
   const gaps = findGaps(claims)
 
   const views = [
@@ -51,6 +60,7 @@ function App() {
             value: 'gaps',
             label: gaps.length > 0 ? `Gap questions (${gaps.length})` : 'Gap questions',
           },
+          { value: 'versions', label: 'Versions' },
           { value: 'audit', label: 'Audit log' },
         ]
       : []),
@@ -87,8 +97,18 @@ function App() {
   }
 
   function handleApprove() {
-    setApproval({ by: 'Lead', at: now() })
-    log('Handover approved', `${pendingCount} claims were still draft at approval.`)
+    const number = versions.length + 1
+    const at = now()
+    setVersions((current) => [
+      ...current,
+      { number, by: 'Lead', at, claims, summary: summarize(claims) },
+    ])
+    setApproval({ by: 'Lead', at, version: number })
+    setAcknowledgements({})
+    log(
+      'Handover approved',
+      `Version ${number}. ${pendingCount} claims were still draft at approval.`
+    )
   }
 
   function handleRevoke() {
@@ -230,6 +250,8 @@ function App() {
           role={role}
           approval={approval}
           pendingCount={pendingCount}
+          changedCount={changedCount}
+          nextVersion={versions.length + 1}
           onApprove={handleApprove}
           onRevoke={handleRevoke}
         />
@@ -312,6 +334,13 @@ function App() {
 
             {activeView === 'gaps' && (
               <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+            )}
+
+            {activeView === 'versions' && (
+              <VersionHistory
+                versions={versions}
+                currentVersion={approval?.version ?? null}
+              />
             )}
 
             {activeView === 'audit' && <AuditLog entries={auditLog} />}
