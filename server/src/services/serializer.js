@@ -3,7 +3,7 @@ const { RESTRICTED_PLACEHOLDER } = require("../constants");
 // Turns a stored claim into the shape in docs/api-contract.md.
 // Expects evidence.chunkId populated, chunk.sourceId populated and
 // review.reviewerId populated. Works on Mongoose documents and plain objects.
-// No role filtering or redaction here: that is added with permissions.
+// No role filtering or redaction here: that lives in permissions.js.
 
 const isoDate = (d) => new Date(d).toISOString().slice(0, 10); // 2026-02-03
 const isoSeconds = (d) => new Date(d).toISOString().slice(0, 19); // 2026-03-02T18:40:00
