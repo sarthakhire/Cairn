@@ -7,6 +7,7 @@ app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+app.use("/api/sources", require("./routes/sources"));
 
 // Unknown /api routes get JSON, not Express's default HTML page.
 app.use("/api", (req, res) => res.status(404).json({ error: "Not found" }));
