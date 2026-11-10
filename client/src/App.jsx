@@ -8,15 +8,21 @@ import FirstWeekPlan from '@/components/FirstWeekPlan'
 import ConflictResolver from '@/components/ConflictResolver'
 import ApprovalBar from '@/components/ApprovalBar'
 import AcknowledgeBar from '@/components/AcknowledgeBar'
+import AuditLog from '@/components/AuditLog'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
-import { claimsForRole, canReview } from '@/lib/roles'
+import { ROLES, claimsForRole, canReview } from '@/lib/roles'
+
+function short(text) {
+  return text.length > 80 ? `${text.slice(0, 80)}...` : text
+}
 
 function App() {
   const [claims, setClaims] = useState(initialClaims)
   const [resolutions, setResolutions] = useState([])
   const [approval, setApproval] = useState(null)
   const [acknowledgements, setAcknowledgements] = useState({})
+  const [auditLog, setAuditLog] = useState([])
   const [role, setRole] = useState('lead')
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
@@ -30,7 +36,12 @@ function App() {
   const views = [
     { value: 'claims', label: 'Claims' },
     { value: 'plan', label: 'First-week plan' },
-    ...(role === 'lead' ? [{ value: 'conflicts', label: 'Conflicts' }] : []),
+    ...(role === 'lead'
+      ? [
+          { value: 'conflicts', label: 'Conflicts' },
+          { value: 'audit', label: 'Audit log' },
+        ]
+      : []),
   ]
   const activeView = views.some((item) => item.value === view) ? view : 'claims'
 
@@ -46,13 +57,19 @@ function App() {
     return new Date().toISOString().slice(0, 19)
   }
 
+  function log(action, detail, actor = 'Lead') {
+    setAuditLog((current) => [{ at: now(), actor, action, detail }, ...current])
+  }
+
   function handleApprove() {
     setApproval({ by: 'Lead', at: now() })
+    log('Handover approved', `${pendingCount} claims were still draft at approval.`)
   }
 
   function handleRevoke() {
     setApproval(null)
     setAcknowledgements({})
+    log('Approval revoked', 'Incoming roles can no longer see the handover.')
   }
 
   function handleAcknowledge(roleValue) {
@@ -60,28 +77,36 @@ function App() {
       ...current,
       [roleValue]: { at: now() },
     }))
+    const label = ROLES.find((item) => item.value === roleValue)?.label ?? roleValue
+    log('Acknowledged', 'Confirmed receipt of the handover.', label)
   }
 
   function handleReview(id, state) {
+    const claim = claims.find((item) => item.id === id)
     const at = now()
     setClaims((current) =>
-      current.map((claim) =>
-        claim.id === id
-          ? { ...claim, review: { state, by: 'Lead', at } }
-          : claim
+      current.map((item) =>
+        item.id === id ? { ...item, review: { state, by: 'Lead', at } } : item
       )
     )
+    if (claim) {
+      log(state === 'accepted' ? 'Accepted' : 'Rejected', short(claim.statement))
+    }
   }
 
   function handleEdit(id, statement) {
+    const claim = claims.find((item) => item.id === id)
     const at = now()
     setClaims((current) =>
-      current.map((claim) =>
-        claim.id === id
-          ? { ...claim, statement, review: { state: 'edited', by: 'Lead', at } }
-          : claim
+      current.map((item) =>
+        item.id === id
+          ? { ...item, statement, review: { state: 'edited', by: 'Lead', at } }
+          : item
       )
     )
+    if (claim) {
+      log('Edited', `From: ${short(claim.statement)} To: ${short(statement)}`)
+    }
   }
 
   function handleResolve(keepId, dropId) {
@@ -121,6 +146,11 @@ function App() {
       },
       ...current,
     ])
+
+    log(
+      'Conflict resolved',
+      `Kept: ${short(keep.statement)} Set aside: ${short(drop.statement)}`
+    )
   }
 
   return (
@@ -214,6 +244,8 @@ function App() {
                 onResolve={handleResolve}
               />
             )}
+
+            {activeView === 'audit' && <AuditLog entries={auditLog} />}
           </>
         )}
       </main>
