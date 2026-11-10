@@ -6,6 +6,8 @@ import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
 import ConflictResolver from '@/components/ConflictResolver'
+import ApprovalBar from '@/components/ApprovalBar'
+import AcknowledgeBar from '@/components/AcknowledgeBar'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
 import { claimsForRole, canReview } from '@/lib/roles'
@@ -13,13 +15,17 @@ import { claimsForRole, canReview } from '@/lib/roles'
 function App() {
   const [claims, setClaims] = useState(initialClaims)
   const [resolutions, setResolutions] = useState([])
+  const [approval, setApproval] = useState(null)
+  const [acknowledgements, setAcknowledgements] = useState({})
   const [role, setRole] = useState('lead')
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
 
-  const roleClaims = claimsForRole(claims, role)
+  const locked = role !== 'lead' && !approval
+  const roleClaims = locked ? [] : claimsForRole(claims, role)
+  const pendingCount = claims.filter((claim) => claim.review.state === 'draft').length
 
   const views = [
     { value: 'claims', label: 'Claims' },
@@ -36,8 +42,28 @@ function App() {
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
 
+  function now() {
+    return new Date().toISOString().slice(0, 19)
+  }
+
+  function handleApprove() {
+    setApproval({ by: 'Lead', at: now() })
+  }
+
+  function handleRevoke() {
+    setApproval(null)
+    setAcknowledgements({})
+  }
+
+  function handleAcknowledge(roleValue) {
+    setAcknowledgements((current) => ({
+      ...current,
+      [roleValue]: { at: now() },
+    }))
+  }
+
   function handleReview(id, state) {
-    const at = new Date().toISOString().slice(0, 19)
+    const at = now()
     setClaims((current) =>
       current.map((claim) =>
         claim.id === id
@@ -48,7 +74,7 @@ function App() {
   }
 
   function handleEdit(id, statement) {
-    const at = new Date().toISOString().slice(0, 19)
+    const at = now()
     setClaims((current) =>
       current.map((claim) =>
         claim.id === id
@@ -59,7 +85,7 @@ function App() {
   }
 
   function handleResolve(keepId, dropId) {
-    const at = new Date().toISOString().slice(0, 19)
+    const at = now()
     const keep = claims.find((claim) => claim.id === keepId)
     const drop = claims.find((claim) => claim.id === dropId)
     if (!keep || !drop) return
@@ -108,67 +134,87 @@ function App() {
 
       <main className="mx-auto max-w-3xl space-y-4 p-6">
         <Hero />
-        <StatsRow claims={roleClaims} />
 
-        <div className="flex gap-4 border-b">
-          {views.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setView(item.value)}
-              aria-pressed={activeView === item.value}
-              className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
-                activeView === item.value
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <ApprovalBar
+          role={role}
+          approval={approval}
+          pendingCount={pendingCount}
+          onApprove={handleApprove}
+          onRevoke={handleRevoke}
+        />
 
-        {activeView === 'claims' && (
+        <AcknowledgeBar
+          role={role}
+          approval={approval}
+          acknowledgements={acknowledgements}
+          onAcknowledge={handleAcknowledge}
+        />
+
+        {!locked && (
           <>
-            <FilterBar
-              status={status}
-              type={type}
-              onStatusChange={setStatus}
-              onTypeChange={setType}
-            />
+            <StatsRow claims={roleClaims} />
 
-            <p className="text-xs text-muted-foreground">
-              Showing {visibleClaims.length} of {roleClaims.length} claims
-            </p>
-
-            <div className="space-y-3">
-              {visibleClaims.map((claim, index) => (
-                <ClaimCard
-                  key={claim.id}
-                  claim={claim}
-                  onSelect={setSelectedId}
-                  index={index}
-                />
+            <div className="flex gap-4 border-b">
+              {views.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setView(item.value)}
+                  aria-pressed={activeView === item.value}
+                  className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
+                    activeView === item.value
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {item.label}
+                </button>
               ))}
-              {visibleClaims.length === 0 && (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No claims match these filters.
-                </p>
-              )}
             </div>
+
+            {activeView === 'claims' && (
+              <>
+                <FilterBar
+                  status={status}
+                  type={type}
+                  onStatusChange={setStatus}
+                  onTypeChange={setType}
+                />
+
+                <p className="text-xs text-muted-foreground">
+                  Showing {visibleClaims.length} of {roleClaims.length} claims
+                </p>
+
+                <div className="space-y-3">
+                  {visibleClaims.map((claim, index) => (
+                    <ClaimCard
+                      key={claim.id}
+                      claim={claim}
+                      onSelect={setSelectedId}
+                      index={index}
+                    />
+                  ))}
+                  {visibleClaims.length === 0 && (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      No claims match these filters.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {activeView === 'plan' && (
+              <FirstWeekPlan claims={roleClaims} onSelect={setSelectedId} />
+            )}
+
+            {activeView === 'conflicts' && (
+              <ConflictResolver
+                claims={roleClaims}
+                resolutions={resolutions}
+                onResolve={handleResolve}
+              />
+            )}
           </>
-        )}
-
-        {activeView === 'plan' && (
-          <FirstWeekPlan claims={roleClaims} onSelect={setSelectedId} />
-        )}
-
-        {activeView === 'conflicts' && (
-          <ConflictResolver
-            claims={roleClaims}
-            resolutions={resolutions}
-            onResolve={handleResolve}
-          />
         )}
       </main>
 
