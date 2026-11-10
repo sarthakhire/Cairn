@@ -1,0 +1,48 @@
+{
+  "issues": [
+    {
+      "number": 3,
+      "title": "Set up CI",
+      "body": "GitHub Actions for lint and tests.",
+      "state": "closed",
+      "user": { "login": "riya" },
+      "created_at": "2026-02-05T09:00:00Z",
+      "html_url": "https://github.com/example-club/clubconnect/issues/3",
+      "comments": [
+        { "user": { "login": "aman" }, "body": "Merged, tests run on every push.", "created_at": "2026-02-05T15:00:00Z" }
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Hosting plan",
+      "body": "We are on the free tier for now. Heads up: free tier ends 30 March, after that we need a paid plan.",
+      "state": "open",
+      "user": { "login": "riya" },
+      "created_at": "2026-02-25T10:12:00Z",
+      "html_url": "https://github.com/example-club/clubconnect/issues/9"
+    },
+    {
+      "number": 11,
+      "title": "Deployment credentials",
+      "body": "Nobody has written down who holds the deployment credentials. Please reply if you do.",
+      "state": "open",
+      "user": { "login": "karan" },
+      "created_at": "2026-02-28T11:00:00Z",
+      "html_url": "https://github.com/example-club/clubconnect/issues/11"
+    },
+    {
+      "number": 14,
+      "title": "Reporting views",
+      "body": "Sprint plan: next sprint we move the reporting views over, Aman has the branch.",
+      "state": "open",
+      "user": { "login": "meera" },
+      "created_at": "2026-03-01T09:30:00Z",
+      "html_url": "https://github.com/example-club/clubconnect/issues/14"
+    }
+  ],
+  "commits": [
+    { "sha": "c0ffee1234567890abcdef1234567890abcdef12", "message": "Fix login redirect", "author": "karan", "date": "2026-01-22T17:05:00Z" },
+    { "sha": "3f9a1c2d8e5b4a7c9d0e1f2a3b4c5d6e7f8091a2", "message": "Pin hosting config to the free plan", "author": "riya", "date": "2026-02-12T16:20:00Z" },
+    { "sha": "a81b2c3d4e5f60718293a4b5c6d7e8f901234567", "message": "Add reporting views (work in progress)", "author": "aman", "date": "2026-02-26T19:45:00Z" }
+  ]
+}
