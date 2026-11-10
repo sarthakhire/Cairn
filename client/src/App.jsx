@@ -6,12 +6,14 @@ import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
 import ConflictResolver from '@/components/ConflictResolver'
+import GapQuestions from '@/components/GapQuestions'
 import ApprovalBar from '@/components/ApprovalBar'
 import AcknowledgeBar from '@/components/AcknowledgeBar'
 import AuditLog from '@/components/AuditLog'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
 import { ROLES, claimsForRole, canReview } from '@/lib/roles'
+import { findGaps, questionFor } from '@/lib/gaps'
 
 function short(text) {
   return text.length > 80 ? `${text.slice(0, 80)}...` : text
@@ -32,6 +34,7 @@ function App() {
   const locked = role !== 'lead' && !approval
   const roleClaims = locked ? [] : claimsForRole(claims, role)
   const pendingCount = claims.filter((claim) => claim.review.state === 'draft').length
+  const gaps = findGaps(claims)
 
   const views = [
     { value: 'claims', label: 'Claims' },
@@ -39,6 +42,10 @@ function App() {
     ...(role === 'lead'
       ? [
           { value: 'conflicts', label: 'Conflicts' },
+          {
+            value: 'gaps',
+            label: gaps.length > 0 ? `Gap questions (${gaps.length})` : 'Gap questions',
+          },
           { value: 'audit', label: 'Audit log' },
         ]
       : []),
@@ -153,6 +160,38 @@ function App() {
     )
   }
 
+  function handleAnswer(id, answer) {
+    const original = claims.find((claim) => claim.id === id)
+    const text = answer.trim()
+    if (!original || !text) return
+
+    const question = questionFor(original)
+    const replacement = {
+      id: `c_gap_${Date.now()}`,
+      type: original.type,
+      statement: `${question} Answer: ${text}`,
+      status: 'uncertain',
+      evidence: [
+        {
+          quote: text,
+          source: 'Answer from departing member',
+          chunk: 1,
+          date: now().slice(0, 10),
+        },
+      ],
+      visibility: original.visibility,
+      review: { state: 'draft', by: null, at: null },
+      nextAction: null,
+      conflictsWith: [],
+      inference: false,
+    }
+
+    setClaims((current) =>
+      current.map((claim) => (claim.id === id ? replacement : claim))
+    )
+    log('Gap answered', `${short(question)} Answer: ${short(text)}`)
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b px-6 py-4">
@@ -184,7 +223,7 @@ function App() {
           <>
             <StatsRow claims={roleClaims} />
 
-            <div className="flex gap-4 border-b">
+            <div className="flex flex-wrap gap-4 border-b">
               {views.map((item) => (
                 <button
                   key={item.value}
@@ -243,6 +282,10 @@ function App() {
                 resolutions={resolutions}
                 onResolve={handleResolve}
               />
+            )}
+
+            {activeView === 'gaps' && (
+              <GapQuestions questions={gaps} onAnswer={handleAnswer} />
             )}
 
             {activeView === 'audit' && <AuditLog entries={auditLog} />}
