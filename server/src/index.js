@@ -11,6 +11,11 @@ if (!process.env.MONGO_URI) {
   process.exit(1);
 }
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+  console.error("JWT_SECRET must be set in .env (16+ random characters).");
+  process.exit(1);
+}
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
