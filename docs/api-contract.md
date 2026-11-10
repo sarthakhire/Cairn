@@ -34,3 +34,13 @@ Koi field badalni ho to dono ko bata ke yahan update karo.
 | GET | /api/claims/:id | One claim with evidence |
 | PATCH | /api/claims/:id/review | Body: state (accepted, edited, rejected), optional statement |
 | GET | /api/handover | Role-based handover view (approved claims only) |
+## POST /api/sources (new, lead only once auth is in)
+
+Upload a source file. `multipart/form-data` with fields:
+- `file`: .md, .json or .csv, max 2 MB
+- `sensitivity`: team | lead_only | restricted (required)
+- `formality`: formal | informal (optional, default informal)
+
+201: `{ "source": { "id", "name", "kind", "sensitivity", "formality" }, "chunkCount": 5 }`
+Errors, all `{ "error": "message" }`: 400 missing or invalid field, 409 name already exists,
+413 file too large, 415 unsupported type, 422 file could not be read.
