@@ -5,6 +5,7 @@ import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
+import Timeline from '@/components/Timeline'
 import ConflictResolver from '@/components/ConflictResolver'
 import GapQuestions from '@/components/GapQuestions'
 import ApprovalBar from '@/components/ApprovalBar'
@@ -38,6 +39,7 @@ function App() {
 
   const views = [
     { value: 'claims', label: 'Claims' },
+    { value: 'timeline', label: 'Timeline' },
     { value: 'plan', label: 'First-week plan' },
     ...(role === 'lead'
       ? [
@@ -270,6 +272,10 @@ function App() {
                   )}
                 </div>
               </>
+            )}
+
+            {activeView === 'timeline' && (
+              <Timeline claims={roleClaims} onSelect={setSelectedId} />
             )}
 
             {activeView === 'plan' && (
