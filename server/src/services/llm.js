@@ -2,41 +2,120 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 
-// The only file that knows which AI provider is used. To switch providers,
-// replace anthropicProvider below. Nothing else needs to change.
+// The only file that knows which AI provider is used. Pick one with
+// LLM_PROVIDER in .env: "gemini" (default, has a free tier) or "anthropic".
+// To add another provider, write one more function like geminiProvider below.
 
 class LlmConfigError extends Error {}
 class LlmOutputError extends Error {}
+class LlmRateLimitError extends Error {}
 
-const DEFAULT_MODEL = "claude-sonnet-5-5";
 const DEFAULT_CACHE_DIR = path.join(__dirname, "..", "..", ".cache", "llm"); // git-ignored
-const modelName = () => process.env.LLM_MODEL || DEFAULT_MODEL;
+const DEFAULT_MODELS = { gemini: "gemini-flash-latest", anthropic: "claude-sonnet-5-5" };
 
-async function anthropicProvider({ system, user }) {
-  const key = process.env.LLM_API_KEY;
-  if (!key) throw new LlmConfigError("LLM_API_KEY is not set");
+const providerName = () => (process.env.LLM_PROVIDER || "gemini").toLowerCase();
+const modelName = () => process.env.LLM_MODEL || DEFAULT_MODELS[providerName()];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: modelName(),
-      max_tokens: 4096,
-      temperature: 0,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-    signal: AbortSignal.timeout(90_000),
-  });
-  // Only the status is reported: the body could echo source text.
-  if (!res.ok) throw new Error("LLM request failed with status " + res.status);
+// Waits so that real calls are at least minIntervalMs apart (free tiers limit calls per minute).
+// Cached answers never reach the provider, so they are never slowed down.
+function makePacer(minIntervalMs, sleepFn) {
+  let last = 0;
+  return async () => {
+    const wait = last + minIntervalMs - Date.now();
+    if (wait > 0) await sleepFn(wait);
+    last = Date.now();
+  };
+}
 
-  const data = await res.json();
-  return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+// 429 (rate limited) and 503 (busy) are retried with a wait; everything else fails at once.
+// Only the status is reported, because a response body could echo source text.
+async function postWithRetry({ url, makeInit, fetchImpl, sleepFn, pace, retries = 3 }) {
+  for (let attempt = 0; ; attempt++) {
+    await pace();
+    const res = await fetchImpl(url, makeInit());
+    if (res.ok) return res;
+    if (res.status !== 429 && res.status !== 503) {
+      throw new Error("LLM request failed with status " + res.status);
+    }
+    if (attempt >= retries) {
+      throw new LlmRateLimitError(
+        "The AI model is rate limited or busy. Wait a few minutes and run again; finished steps are cached."
+      );
+    }
+    const asked = Number(res.headers && res.headers.get && res.headers.get("retry-after"));
+    const wait = asked > 0 ? asked * 1000 : 5000 * 2 ** attempt; // 5s, 10s, 20s
+    await sleepFn(Math.min(wait, 60_000));
+  }
+}
+
+function createGeminiProvider({
+  fetchImpl = fetch,
+  sleepFn = sleep,
+  minIntervalMs = Number(process.env.LLM_MIN_INTERVAL_MS) || 4000,
+} = {}) {
+  const pace = makePacer(minIntervalMs, sleepFn);
+  return async function geminiProvider({ system, user }) {
+    const key = process.env.LLM_API_KEY;
+    if (!key) throw new LlmConfigError("LLM_API_KEY is not set");
+
+    const res = await postWithRetry({
+      url: "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelName()) + ":generateContent",
+      makeInit: () => ({
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(90_000),
+      }),
+      fetchImpl,
+      sleepFn,
+      pace,
+    });
+    const data = await res.json();
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    return parts.map((p) => p.text || "").join("");
+  };
+}
+
+function createAnthropicProvider({ fetchImpl = fetch, sleepFn = sleep, minIntervalMs = 0 } = {}) {
+  const pace = makePacer(minIntervalMs, sleepFn);
+  return async function anthropicProvider({ system, user }) {
+    const key = process.env.LLM_API_KEY;
+    if (!key) throw new LlmConfigError("LLM_API_KEY is not set");
+
+    const res = await postWithRetry({
+      url: "https://api.anthropic.com/v1/messages",
+      makeInit: () => ({
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: modelName(),
+          max_tokens: 4096,
+          temperature: 0,
+          system,
+          messages: [{ role: "user", content: user }],
+        }),
+        signal: AbortSignal.timeout(90_000),
+      }),
+      fetchImpl,
+      sleepFn,
+      pace,
+    });
+    const data = await res.json();
+    return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  };
+}
+
+const providers = { gemini: createGeminiProvider(), anthropic: createAnthropicProvider() };
+
+function defaultProvider(args) {
+  const p = providers[providerName()];
+  if (!p) throw new LlmConfigError('LLM_PROVIDER must be "gemini" or "anthropic"');
+  return p(args);
 }
 
 // Models sometimes wrap JSON in code fences or add a sentence around it.
@@ -57,9 +136,9 @@ function parseJsonLoose(text) {
 // Results are cached by a hash of (model, system, user), so retries and demo
 // reruns cost nothing. Only output that passed validation is ever cached.
 function createGenerator({
-  provider = anthropicProvider,
+  provider = defaultProvider,
   cacheDir = DEFAULT_CACHE_DIR,
-  modelId = modelName,
+  modelId = () => providerName() + ":" + modelName(),
 } = {}) {
   return async function generateJson({ system, user, schema }) {
     const key = crypto.createHash("sha256").update(JSON.stringify([modelId(), system, user])).digest("hex");
@@ -100,6 +179,9 @@ module.exports = {
   generateJson: createGenerator(),
   createGenerator,
   parseJsonLoose,
+  createGeminiProvider,
+  createAnthropicProvider,
   LlmConfigError,
   LlmOutputError,
+  LlmRateLimitError,
 };
