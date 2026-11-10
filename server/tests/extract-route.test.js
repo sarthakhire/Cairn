@@ -6,7 +6,7 @@ const request = require("supertest");
 
 // Patch before the app loads, because the route reads runExtraction at require time.
 const pipeline = require("../src/services/extraction/pipeline");
-const { LlmConfigError } = require("../src/services/llm");
+const { LlmConfigError, LlmRateLimitError } = require("../src/services/llm");
 let behaviour = async () => ({ claimsCreated: 3 });
 pipeline.runExtraction = (args) => behaviour(args);
 
@@ -36,6 +36,11 @@ test("known failures map to clean JSON errors", async () => {
   behaviour = async () => { throw new LlmConfigError("LLM_API_KEY is not set"); };
   res = await post("lead");
   assert.equal(res.status, 503);
+
+  behaviour = async () => { throw new LlmRateLimitError("The AI model is rate limited or busy."); };
+  res = await post("lead");
+  assert.equal(res.status, 503);
+  assert.deepEqual(res.body, { error: "The AI model is rate limited or busy." });
 
   behaviour = async () => { throw new Error("secret internal detail"); };
   res = await post("lead");
