@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { MASK, describeCounts, redact } from '@/lib/redact'
 
 const MAX_BYTES = 2 * 1024 * 1024
+const PREVIEW_CHARS = 1500
 
 const SENSITIVITY = [
   { value: 'team', label: 'Team' },
@@ -44,6 +46,26 @@ function countChunks(kind, text) {
   return text.split(/\n\s*\n/).filter((block) => block.trim()).length
 }
 
+function Preview({ text }) {
+  const parts = text.split(/(\[REDACTED\])/g)
+  return (
+    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 text-xs">
+      {parts.map((part, index) =>
+        part === MASK ? (
+          <span
+            key={index}
+            className="rounded bg-red-500/20 px-1 text-red-400"
+          >
+            {MASK}
+          </span>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      )}
+    </pre>
+  )
+}
+
 function Sources({ sources, onImport }) {
   const [file, setFile] = useState(null)
   const [fileKey, setFileKey] = useState(0)
@@ -51,6 +73,7 @@ function Sources({ sources, onImport }) {
   const [formality, setFormality] = useState('informal')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [openName, setOpenName] = useState(null)
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -81,20 +104,37 @@ function Sources({ sources, onImport }) {
     }
 
     try {
-      const text = await file.text()
-      if (!text.trim()) {
+      const original = await file.text()
+      if (!original.trim()) {
         setError('The file is empty.')
         return
       }
-      const chunkCount = countChunks(kind, text)
+
+      const chunkCount = countChunks(kind, original)
+      const result = redact(original)
+      const preview =
+        result.text.length > PREVIEW_CHARS
+          ? `${result.text.slice(0, PREVIEW_CHARS)}\n...`
+          : result.text
+
       onImport({
         name: file.name,
         kind,
         sensitivity,
         formality,
         chunkCount,
+        redactions: result.counts,
+        redactedTotal: result.total,
+        preview,
       })
-      setNotice(`Imported ${file.name} as ${labelFor(sensitivity)}.`)
+
+      setNotice(
+        result.total > 0
+          ? `Imported ${file.name} as ${labelFor(sensitivity)}. ${result.total} sensitive ${
+              result.total === 1 ? 'item was' : 'items were'
+            } redacted.`
+          : `Imported ${file.name} as ${labelFor(sensitivity)}. Nothing needed redacting.`
+      )
       setFile(null)
       setFileKey((current) => current + 1)
       setSensitivity('')
@@ -107,9 +147,10 @@ function Sources({ sources, onImport }) {
   return (
     <div className="space-y-6">
       <p className="text-xs text-muted-foreground">
-        Every source gets a sensitivity label when it is imported. Claims built
-        from it inherit the most restrictive label. This screen is a preview: the
-        file is read in your browser and is not sent to the server yet.
+        Every source gets a sensitivity label when it is imported. Credentials,
+        emails and phone numbers are redacted before anything is kept, and only
+        the redacted copy is shown here. This screen is a preview: the file is
+        read in your browser and is not sent to the server yet.
       </p>
 
       <form
@@ -117,7 +158,9 @@ function Sources({ sources, onImport }) {
         className="space-y-4 rounded-lg border bg-card p-4"
       >
         <label className="block space-y-1.5 text-sm">
-          <span className="text-muted-foreground">File (.md, .json or .csv, up to 2 MB)</span>
+          <span className="text-muted-foreground">
+            File (.md, .json or .csv, up to 2 MB)
+          </span>
           <input
             key={fileKey}
             type="file"
@@ -186,27 +229,53 @@ function Sources({ sources, onImport }) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {sources.map((item) => (
-              <li
-                key={item.name}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card p-3 text-sm"
-              >
-                <span className="space-y-0.5">
-                  <span className="block font-medium">{item.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {item.kind}, {item.formality}, {item.chunkCount} chunks,{' '}
-                    {item.at.replace('T', ' ')}
-                  </span>
-                </span>
-                <span
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                    TONE[item.sensitivity] ?? ''
-                  }`}
-                >
-                  {labelFor(item.sensitivity)}
-                </span>
-              </li>
-            ))}
+            {sources.map((item) => {
+              const open = openName === item.name
+              return (
+                <li key={item.name} className="space-y-3 rounded-md border bg-card p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="space-y-0.5">
+                      <span className="block font-medium">{item.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {item.kind}, {item.formality}, {item.chunkCount} chunks,{' '}
+                        {item.at.replace('T', ' ')}
+                      </span>
+                    </span>
+                    <span
+                      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                        TONE[item.sensitivity] ?? ''
+                      }`}
+                    >
+                      {labelFor(item.sensitivity)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    {item.redactedTotal > 0 ? (
+                      <span className="text-red-400">
+                        {item.redactedTotal}{' '}
+                        {item.redactedTotal === 1 ? 'item' : 'items'} redacted:{' '}
+                        {describeCounts(item.redactions)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Scanned, nothing to redact
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setOpenName(open ? null : item.name)}
+                      aria-expanded={open}
+                      className="rounded-md border px-2.5 py-1 transition-colors hover:bg-accent"
+                    >
+                      {open ? 'Hide preview' : 'Show redacted preview'}
+                    </button>
+                  </div>
+
+                  {open && <Preview text={item.preview} />}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
