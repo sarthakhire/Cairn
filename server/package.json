@@ -7,13 +7,14 @@
     "dev": "nodemon src/index.js",
     "test": "node --test",
     "seed": "node src/seed.js"
-},
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.11",
+    "supertest": "^7.3.2"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
