@@ -3,7 +3,6 @@ import initialClaims from '@/mock/claims.json'
 import ClaimCard from '@/components/ClaimCard'
 import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
-import RoleSwitcher from '@/components/RoleSwitcher'
 import FirstWeekPlan from '@/components/FirstWeekPlan'
 import Timeline from '@/components/Timeline'
 import ConflictResolver from '@/components/ConflictResolver'
@@ -13,6 +12,8 @@ import AcknowledgeBar from '@/components/AcknowledgeBar'
 import AuditLog from '@/components/AuditLog'
 import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
+import Login from '@/components/Login'
+import UserBar from '@/components/UserBar'
 import { ROLES, claimsForRole, canReview } from '@/lib/roles'
 import { findGaps, questionFor } from '@/lib/gaps'
 
@@ -21,16 +22,18 @@ function short(text) {
 }
 
 function App() {
+  const [user, setUser] = useState(null)
   const [claims, setClaims] = useState(initialClaims)
   const [resolutions, setResolutions] = useState([])
   const [approval, setApproval] = useState(null)
   const [acknowledgements, setAcknowledgements] = useState({})
   const [auditLog, setAuditLog] = useState([])
-  const [role, setRole] = useState('lead')
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
+
+  const role = user?.role
 
   const locked = role !== 'lead' && !approval
   const roleClaims = locked ? [] : claimsForRole(claims, role)
@@ -68,6 +71,19 @@ function App() {
 
   function log(action, detail, actor = 'Lead') {
     setAuditLog((current) => [{ at: now(), actor, action, detail }, ...current])
+  }
+
+  function handleLogin(nextUser) {
+    setUser(nextUser)
+    setView('claims')
+    setStatus('all')
+    setType('all')
+    setSelectedId(null)
+  }
+
+  function handleLogout() {
+    setUser(null)
+    setSelectedId(null)
   }
 
   function handleApprove() {
@@ -194,13 +210,17 @@ function App() {
     log('Gap answered', `${short(question)} Answer: ${short(text)}`)
   }
 
+  if (!user) {
+    return <Login onLogin={handleLogin} />
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b px-6 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
         <h1 className="text-xl font-semibold">
           Handover<span className="font-serif text-2xl italic">Trail</span>
         </h1>
-        <RoleSwitcher role={role} onChange={setRole} />
+        <UserBar user={user} onLogout={handleLogout} />
       </header>
 
       <main className="mx-auto max-w-3xl space-y-4 p-6">
