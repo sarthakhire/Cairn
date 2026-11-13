@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import initialClaims from '@/mock/claims.json'
+import { useCallback, useEffect, useState } from 'react'
 import ClaimCard from '@/components/ClaimCard'
 import FilterBar from '@/components/FilterBar'
 import EvidenceDrawer from '@/components/EvidenceDrawer'
@@ -16,24 +15,44 @@ import StatsRow from '@/components/StatsRow'
 import Hero from '@/components/Hero'
 import Login from '@/components/Login'
 import UserBar from '@/components/UserBar'
-import { ROLES, claimsForRole, canReview } from '@/lib/roles'
-import { findGaps, questionFor } from '@/lib/gaps'
-import { summarize, countChanges } from '@/lib/versions'
-import { describeCounts, redact } from '@/lib/redact'
+import { canReview } from '@/lib/roles'
+import { findGaps } from '@/lib/gaps'
+import { describeCounts } from '@/lib/redact'
+import { api } from '@/lib/api'
 
-function short(text) {
-  return text.length > 80 ? `${text.slice(0, 80)}...` : text
+const EMPTY_APPROVAL = {
+  approval: null,
+  acknowledgements: {},
+  pendingCount: 0,
+  changedCount: 0,
+  nextVersion: 1,
+  versions: [],
+}
+
+// Everything the signed-in role is allowed to load. The server filters the
+// claims for the role, so this never decides what a person may see.
+async function fetchAll(role) {
+  const lead = role === 'lead'
+  const [claims, approval, audit, sources, resolutions] = await Promise.all([
+    api.claims(),
+    api.approval(),
+    lead ? api.audit() : [],
+    lead ? api.sources() : [],
+    lead ? api.resolutions() : [],
+  ])
+  return { claims, approval, audit, sources, resolutions }
 }
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [claims, setClaims] = useState(initialClaims)
+  const [user, setUser] = useState(() => api.currentUser())
+  const [claims, setClaims] = useState([])
+  const [approvalState, setApprovalState] = useState(EMPTY_APPROVAL)
   const [resolutions, setResolutions] = useState([])
-  const [versions, setVersions] = useState([])
-  const [approval, setApproval] = useState(null)
-  const [acknowledgements, setAcknowledgements] = useState({})
   const [auditLog, setAuditLog] = useState([])
   const [sources, setSources] = useState([])
+  const [loading, setLoading] = useState(() => Boolean(api.currentUser()))
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
   const [gapNotice, setGapNotice] = useState('')
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
@@ -42,16 +61,58 @@ function App() {
 
   const role = user?.role
 
-  const snapshot = approval
-    ? (versions.find((item) => item.number === approval.version)?.claims ?? claims)
-    : claims
-  const source = role === 'lead' ? claims : snapshot
+  const applyData = useCallback((data) => {
+    setClaims(data.claims)
+    setApprovalState({ ...EMPTY_APPROVAL, ...data.approval })
+    setAuditLog(data.audit)
+    setSources(data.sources)
+    setResolutions(data.resolutions)
+  }, [])
 
+  const clearData = useCallback(() => {
+    setClaims([])
+    setApprovalState(EMPTY_APPROVAL)
+    setAuditLog([])
+    setSources([])
+    setResolutions([])
+  }, [])
+
+  // The server rejected our token (expired or revoked): go back to sign-in.
+  useEffect(() => {
+    api.onUnauthorized(() => {
+      setUser(null)
+      clearData()
+      setNotice('Your session expired. Sign in again.')
+    })
+  }, [clearData])
+
+  // Load everything when someone signs in, or when a saved session is restored.
+  useEffect(() => {
+    if (!user) return undefined
+    let cancelled = false
+    fetchAll(user.role)
+      .then((data) => {
+        if (!cancelled) applyData(data)
+      })
+      .catch((err) => {
+        // A 401 already sent the app back to sign-in with its own message.
+        if (!cancelled && err.status !== 401) setNotice(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user, applyData])
+
+  const { approval, acknowledgements, pendingCount, changedCount, nextVersion, versions } =
+    approvalState
+
+  // Incoming roles see nothing until the reviewer approves a version.
   const locked = role !== 'lead' && !approval
-  const roleClaims = locked ? [] : claimsForRole(source, role)
-  const pendingCount = claims.filter((claim) => claim.review.state === 'draft').length
-  const changedCount = approval ? countChanges(snapshot, claims) : 0
-  const gaps = findGaps(claims)
+  const roleClaims = locked ? [] : claims
+  const gaps = role === 'lead' ? findGaps(claims) : []
 
   const views = [
     { value: 'claims', label: 'Claims' },
@@ -80,15 +141,9 @@ function App() {
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
 
-  function now() {
-    return new Date().toISOString().slice(0, 19)
-  }
-
-  function log(action, detail, actor = 'Lead') {
-    setAuditLog((current) => [{ at: now(), actor, action, detail }, ...current])
-  }
-
   function handleLogin(nextUser) {
+    setLoading(true)
+    setNotice('')
     setUser(nextUser)
     setView('claims')
     setStatus('all')
@@ -98,176 +153,79 @@ function App() {
   }
 
   function handleLogout() {
+    api.logout()
     setUser(null)
+    clearData()
     setSelectedId(null)
     setGapNotice('')
+    setNotice('')
   }
 
-  function handleImport(imported) {
-    setSources((current) => [{ ...imported, at: now() }, ...current])
-    const redactionNote =
-      imported.redactedTotal > 0
-        ? `, ${imported.redactedTotal} redacted (${describeCounts(imported.redactions)})`
-        : ', nothing redacted'
-    log(
-      'Source imported',
-      `${imported.name}, ${imported.sensitivity}, ${imported.chunkCount} chunks${redactionNote}`
-    )
+  // Runs one change on the server, then reloads so the screen shows exactly what
+  // the server now holds. A failure shows as a message and changes nothing here.
+  async function act(change) {
+    setBusy(true)
+    setNotice('')
+    try {
+      const result = await change()
+      applyData(await fetchAll(role))
+      return result ?? true
+    } catch (err) {
+      setNotice(err.message)
+      return null
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The Sources form shows its own errors, so this one lets them through.
+  async function handleImport(file, sensitivity, formality) {
+    const result = await api.uploadSource(file, sensitivity, formality)
+    applyData(await fetchAll(role))
+    return result
   }
 
   function handleApprove() {
-    const number = versions.length + 1
-    const at = now()
-    setVersions((current) => [
-      ...current,
-      { number, by: 'Lead', at, claims, summary: summarize(claims) },
-    ])
-    setApproval({ by: 'Lead', at, version: number })
-    setAcknowledgements({})
-    log(
-      'Handover approved',
-      `Version ${number}. ${pendingCount} claims were still draft at approval.`
-    )
+    return act(() => api.approve())
   }
 
   function handleRevoke() {
-    setApproval(null)
-    setAcknowledgements({})
-    log('Approval revoked', 'Incoming roles can no longer see the handover.')
+    return act(() => api.revoke())
   }
 
-  function handleAcknowledge(roleValue) {
-    setAcknowledgements((current) => ({
-      ...current,
-      [roleValue]: { at: now() },
-    }))
-    const label = ROLES.find((item) => item.value === roleValue)?.label ?? roleValue
-    log('Acknowledged', 'Confirmed receipt of the handover.', label)
+  function handleAcknowledge() {
+    return act(() => api.acknowledge())
   }
 
   function handleReview(id, state) {
-    const claim = claims.find((item) => item.id === id)
-    const at = now()
-    setClaims((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, review: { state, by: 'Lead', at } } : item
-      )
-    )
-    if (claim) {
-      log(state === 'accepted' ? 'Accepted' : 'Rejected', short(claim.statement))
-    }
+    return act(() => api.review(id, state === 'accepted' ? 'accept' : 'reject'))
   }
 
   function handleEdit(id, statement) {
-    const claim = claims.find((item) => item.id === id)
-    const at = now()
-    setClaims((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, statement, review: { state: 'edited', by: 'Lead', at } }
-          : item
-      )
-    )
-    if (claim) {
-      log('Edited', `From: ${short(claim.statement)} To: ${short(statement)}`)
-    }
+    return act(() => api.review(id, 'edit', statement))
   }
 
   function handleResolve(keepId, dropId) {
-    const at = now()
-    const keep = claims.find((claim) => claim.id === keepId)
-    const drop = claims.find((claim) => claim.id === dropId)
-    if (!keep || !drop) return
-
-    setClaims((current) =>
-      current.map((claim) => {
-        if (claim.id === keepId) {
-          return {
-            ...claim,
-            status: 'verified',
-            conflictsWith: [],
-            review: { state: 'accepted', by: 'Lead', at },
-          }
-        }
-        if (claim.id === dropId) {
-          return {
-            ...claim,
-            status: 'uncertain',
-            conflictsWith: [],
-            review: { state: 'rejected', by: 'Lead', at },
-          }
-        }
-        return claim
-      })
-    )
-
-    setResolutions((current) => [
-      {
-        keepStatement: keep.statement,
-        dropStatement: drop.statement,
-        by: 'Lead',
-        at,
-      },
-      ...current,
-    ])
-
-    log(
-      'Conflict resolved',
-      `Kept: ${short(keep.statement)} Set aside: ${short(drop.statement)}`
-    )
+    return act(() => api.resolve(keepId, dropId))
   }
 
-  function handleAnswer(id, answer) {
-    const original = claims.find((claim) => claim.id === id)
-    const typed = answer.trim()
-    if (!original || !typed) return
-
-    const cleaned = redact(typed)
-    const text = cleaned.text
-    const question = questionFor(original)
-
-    const replacement = {
-      id: `c_gap_${Date.now()}`,
-      type: original.type,
-      statement: `${question} Answer: ${text}`,
-      status: 'uncertain',
-      evidence: [
-        {
-          quote: text,
-          source: 'Answer from departing member',
-          chunk: 1,
-          date: now().slice(0, 10),
-        },
-      ],
-      visibility: original.visibility,
-      review: { state: 'draft', by: null, at: null },
-      nextAction: null,
-      conflictsWith: [],
-      inference: false,
-    }
-
-    setClaims((current) =>
-      current.map((claim) => (claim.id === id ? replacement : claim))
-    )
-
-    if (cleaned.total > 0) {
+  async function handleAnswer(id, answer) {
+    const result = await act(() => api.answer(id, answer.trim()))
+    if (!result) return
+    const { redacted } = result
+    if (redacted && redacted.total > 0) {
       setGapNotice(
-        `Your answer was saved, but ${cleaned.total} sensitive ${
-          cleaned.total === 1 ? 'item was' : 'items were'
-        } redacted (${describeCounts(cleaned.counts)}). Share secrets through a restricted source instead.`
-      )
-      log(
-        'Gap answered',
-        `${short(question)} Answer: ${short(text)} (${cleaned.total} redacted)`
+        `Your answer was saved, but ${redacted.total} sensitive ${
+          redacted.total === 1 ? 'item was' : 'items were'
+        } redacted (${describeCounts(redacted)}). Share secrets through a restricted source instead.`
       )
     } else {
       setGapNotice('')
-      log('Gap answered', `${short(question)} Answer: ${short(text)}`)
     }
   }
 
   if (!user) {
-    return <Login onLogin={handleLogin} />
+    return <Login onLogin={handleLogin} notice={notice} />
   }
 
   return (
@@ -282,118 +240,144 @@ function App() {
       <main className="mx-auto max-w-3xl space-y-4 p-6">
         <Hero />
 
-        <ApprovalBar
-          role={role}
-          approval={approval}
-          pendingCount={pendingCount}
-          changedCount={changedCount}
-          nextVersion={versions.length + 1}
-          onApprove={handleApprove}
-          onRevoke={handleRevoke}
-        />
+        {notice && (
+          <p
+            role="alert"
+            className="flex items-start justify-between gap-3 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"
+          >
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice('')} className="underline">
+              Dismiss
+            </button>
+          </p>
+        )}
 
-        <AcknowledgeBar
-          role={role}
-          approval={approval}
-          acknowledgements={acknowledgements}
-          onAcknowledge={handleAcknowledge}
-        />
-
-        {!locked && (
+        {loading ? (
+          <p role="status" className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Loading the handover...
+          </p>
+        ) : (
           <>
-            <StatsRow claims={roleClaims} />
+            {busy && (
+              <p role="status" className="text-xs text-muted-foreground">
+                Saving...
+              </p>
+            )}
 
-            <div className="flex flex-wrap gap-4 border-b">
-              {views.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setView(item.value)}
-                  aria-pressed={activeView === item.value}
-                  className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
-                    activeView === item.value
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            <ApprovalBar
+              role={role}
+              approval={approval}
+              pendingCount={pendingCount}
+              changedCount={changedCount}
+              nextVersion={nextVersion}
+              onApprove={handleApprove}
+              onRevoke={handleRevoke}
+            />
 
-            {activeView === 'claims' && (
+            <AcknowledgeBar
+              role={role}
+              approval={approval}
+              acknowledgements={acknowledgements}
+              onAcknowledge={handleAcknowledge}
+            />
+
+            {!locked && (
               <>
-                <FilterBar
-                  status={status}
-                  type={type}
-                  onStatusChange={setStatus}
-                  onTypeChange={setType}
-                />
+                <StatsRow claims={roleClaims} />
 
-                <p className="text-xs text-muted-foreground">
-                  Showing {visibleClaims.length} of {roleClaims.length} claims
-                </p>
-
-                <div className="space-y-3">
-                  {visibleClaims.map((claim, index) => (
-                    <ClaimCard
-                      key={claim.id}
-                      claim={claim}
-                      onSelect={setSelectedId}
-                      index={index}
-                    />
+                <div className="flex flex-wrap gap-4 border-b">
+                  {views.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setView(item.value)}
+                      aria-pressed={activeView === item.value}
+                      className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
+                        activeView === item.value
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
                   ))}
-                  {visibleClaims.length === 0 && (
-                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      No claims match these filters.
-                    </p>
-                  )}
                 </div>
-              </>
-            )}
 
-            {activeView === 'timeline' && (
-              <Timeline claims={roleClaims} onSelect={setSelectedId} />
-            )}
+                {activeView === 'claims' && (
+                  <>
+                    <FilterBar
+                      status={status}
+                      type={type}
+                      onStatusChange={setStatus}
+                      onTypeChange={setType}
+                    />
 
-            {activeView === 'plan' && (
-              <FirstWeekPlan claims={roleClaims} onSelect={setSelectedId} />
-            )}
+                    <p className="text-xs text-muted-foreground">
+                      Showing {visibleClaims.length} of {roleClaims.length} claims
+                    </p>
 
-            {activeView === 'conflicts' && (
-              <ConflictResolver
-                claims={roleClaims}
-                resolutions={resolutions}
-                onResolve={handleResolve}
-              />
-            )}
-
-            {activeView === 'gaps' && (
-              <>
-                {gapNotice && (
-                  <p
-                    role="status"
-                    className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400"
-                  >
-                    {gapNotice}
-                  </p>
+                    <div className="space-y-3">
+                      {visibleClaims.map((claim, index) => (
+                        <ClaimCard
+                          key={claim.id}
+                          claim={claim}
+                          onSelect={setSelectedId}
+                          index={index}
+                        />
+                      ))}
+                      {visibleClaims.length === 0 && (
+                        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                          No claims match these filters.
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
-                <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+
+                {activeView === 'timeline' && (
+                  <Timeline claims={roleClaims} onSelect={setSelectedId} />
+                )}
+
+                {activeView === 'plan' && (
+                  <FirstWeekPlan claims={roleClaims} onSelect={setSelectedId} />
+                )}
+
+                {activeView === 'conflicts' && (
+                  <ConflictResolver
+                    claims={roleClaims}
+                    resolutions={resolutions}
+                    onResolve={handleResolve}
+                  />
+                )}
+
+                {activeView === 'gaps' && (
+                  <>
+                    {gapNotice && (
+                      <p
+                        role="status"
+                        className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400"
+                      >
+                        {gapNotice}
+                      </p>
+                    )}
+                    <GapQuestions questions={gaps} onAnswer={handleAnswer} />
+                  </>
+                )}
+
+                {activeView === 'sources' && (
+                  <Sources sources={sources} onImport={handleImport} />
+                )}
+
+                {activeView === 'versions' && (
+                  <VersionHistory
+                    versions={versions}
+                    currentVersion={approval?.version ?? null}
+                  />
+                )}
+
+                {activeView === 'audit' && <AuditLog entries={auditLog} />}
               </>
             )}
-
-            {activeView === 'sources' && (
-              <Sources sources={sources} onImport={handleImport} />
-            )}
-
-            {activeView === 'versions' && (
-              <VersionHistory
-                versions={versions}
-                currentVersion={approval?.version ?? null}
-              />
-            )}
-
-            {activeView === 'audit' && <AuditLog entries={auditLog} />}
           </>
         )}
       </main>

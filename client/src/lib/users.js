@@ -1,3 +1,5 @@
+// Demo accounts shown on the sign-in screen. The server checks the password;
+// this list only saves typing during the demo.
 export const USERS = [
   {
     id: 'u_lead',
@@ -21,13 +23,3 @@ export const USERS = [
     role: 'incoming_developer',
   },
 ]
-
-export function authenticate(email, password) {
-  const match = USERS.find(
-    (user) =>
-      user.email === email.trim().toLowerCase() && user.password === password
-  )
-  if (!match) return null
-  const { password: _password, ...safeUser } = match
-  return safeUser
-}

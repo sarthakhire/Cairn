@@ -20,30 +20,8 @@ function labelFor(value) {
   return SENSITIVITY.find((item) => item.value === value)?.label ?? value
 }
 
-function kindOf(name) {
-  const match = name.toLowerCase().match(/\.(md|json|csv)$/)
-  return match ? match[1] : null
-}
-
-function countChunks(kind, text) {
-  if (kind === 'csv') {
-    const rows = text.split(/\r?\n/).filter((line) => line.trim())
-    return Math.max(rows.length - 1, 0)
-  }
-
-  if (kind === 'json') {
-    const data = JSON.parse(text)
-    if (Array.isArray(data)) return data.length
-    if (data && typeof data === 'object') {
-      const total = Object.values(data)
-        .filter(Array.isArray)
-        .reduce((sum, list) => sum + list.length, 0)
-      return total || 1
-    }
-    return 1
-  }
-
-  return text.split(/\n\s*\n/).filter((block) => block.trim()).length
+function hasSupportedType(name) {
+  return /\.(md|json|csv)$/i.test(name)
 }
 
 function Preview({ text }) {
@@ -66,6 +44,9 @@ function Preview({ text }) {
   )
 }
 
+// onImport(file, sensitivity, formality) uploads the file and resolves with the
+// server's reply ({ chunkCount, redactions, redactedTotal }). It rejects with an
+// Error whose message is safe to show.
 function Sources({ sources, onImport }) {
   const [file, setFile] = useState(null)
   const [fileKey, setFileKey] = useState(0)
@@ -73,6 +54,8 @@ function Sources({ sources, onImport }) {
   const [formality, setFormality] = useState('informal')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [previews, setPreviews] = useState({})
   const [openName, setOpenName] = useState(null)
 
   async function handleSubmit(event) {
@@ -88,9 +71,7 @@ function Sources({ sources, onImport }) {
       setError('Choose a sensitivity label. Every source needs one.')
       return
     }
-
-    const kind = kindOf(file.name)
-    if (!kind) {
+    if (!hasSupportedType(file.name)) {
       setError('Unsupported file type. Use .md, .json or .csv.')
       return
     }
@@ -103,6 +84,7 @@ function Sources({ sources, onImport }) {
       return
     }
 
+    setBusy(true)
     try {
       const original = await file.text()
       if (!original.trim()) {
@@ -110,47 +92,47 @@ function Sources({ sources, onImport }) {
         return
       }
 
-      const chunkCount = countChunks(kind, original)
-      const result = redact(original)
-      const preview =
-        result.text.length > PREVIEW_CHARS
-          ? `${result.text.slice(0, PREVIEW_CHARS)}\n...`
-          : result.text
+      const result = await onImport(file, sensitivity, formality)
 
-      onImport({
-        name: file.name,
-        kind,
-        sensitivity,
-        formality,
-        chunkCount,
-        redactions: result.counts,
-        redactedTotal: result.total,
-        preview,
-      })
+      // The server did the real redaction. This preview only shows the reviewer what it looks like.
+      if (sensitivity !== 'restricted') {
+        const masked = redact(original).text
+        const preview =
+          masked.length > PREVIEW_CHARS ? `${masked.slice(0, PREVIEW_CHARS)}\n...` : masked
+        setPreviews((current) => ({ ...current, [file.name]: preview }))
+      }
 
-      setNotice(
-        result.total > 0
-          ? `Imported ${file.name} as ${labelFor(sensitivity)}. ${result.total} sensitive ${
-              result.total === 1 ? 'item was' : 'items were'
-            } redacted.`
-          : `Imported ${file.name} as ${labelFor(sensitivity)}. Nothing needed redacting.`
-      )
+      const label = labelFor(sensitivity)
+      if (sensitivity === 'restricted') {
+        setNotice(`Imported ${file.name} as ${label}, ${result.chunkCount} chunks. Stored as written; only the reviewer can read it.`)
+      } else if (result.redactedTotal > 0) {
+        setNotice(
+          `Imported ${file.name} as ${label}, ${result.chunkCount} chunks. ${result.redactedTotal} sensitive ${
+            result.redactedTotal === 1 ? 'item was' : 'items were'
+          } redacted (${describeCounts(result.redactions)}).`
+        )
+      } else {
+        setNotice(`Imported ${file.name} as ${label}, ${result.chunkCount} chunks. Nothing needed redacting.`)
+      }
       setFile(null)
       setFileKey((current) => current + 1)
       setSensitivity('')
       setFormality('informal')
-    } catch {
-      setError('The file could not be read. Check that it is valid.')
+    } catch (err) {
+      setError(err.message || 'The file could not be imported.')
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
     <div className="space-y-6">
       <p className="text-xs text-muted-foreground">
-        Every source gets a sensitivity label when it is imported. Credentials,
-        emails and phone numbers are redacted before anything is kept, and only
-        the redacted copy is shown here. This screen is a preview: the file is
-        read in your browser and is not sent to the server yet.
+        Every source gets a sensitivity label when it is imported. For team and
+        lead-only sources, the server redacts credentials, emails and phone
+        numbers before anything is stored, so only the redacted copy exists.
+        Restricted sources are stored as written, because that is where secrets
+        belong, and only the reviewer can read them.
       </p>
 
       <form
@@ -213,9 +195,10 @@ function Sources({ sources, onImport }) {
 
         <button
           type="submit"
-          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          disabled={busy}
+          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          Import source
+          {busy ? 'Importing...' : 'Import source'}
         </button>
       </form>
 
@@ -230,6 +213,7 @@ function Sources({ sources, onImport }) {
         ) : (
           <ul className="space-y-2">
             {sources.map((item) => {
+              const preview = previews[item.name]
               const open = openName === item.name
               return (
                 <li key={item.name} className="space-y-3 rounded-md border bg-card p-3">
@@ -251,7 +235,11 @@ function Sources({ sources, onImport }) {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    {item.redactedTotal > 0 ? (
+                    {item.sensitivity === 'restricted' ? (
+                      <span className="text-muted-foreground">
+                        Stored as written, reviewer only
+                      </span>
+                    ) : item.redactedTotal > 0 ? (
                       <span className="text-red-400">
                         {item.redactedTotal}{' '}
                         {item.redactedTotal === 1 ? 'item' : 'items'} redacted:{' '}
@@ -262,17 +250,19 @@ function Sources({ sources, onImport }) {
                         Scanned, nothing to redact
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setOpenName(open ? null : item.name)}
-                      aria-expanded={open}
-                      className="rounded-md border px-2.5 py-1 transition-colors hover:bg-accent"
-                    >
-                      {open ? 'Hide preview' : 'Show redacted preview'}
-                    </button>
+                    {preview && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenName(open ? null : item.name)}
+                        aria-expanded={open}
+                        className="rounded-md border px-2.5 py-1 transition-colors hover:bg-accent"
+                      >
+                        {open ? 'Hide preview' : 'Show redacted preview'}
+                      </button>
+                    )}
                   </div>
 
-                  {open && <Preview text={item.preview} />}
+                  {open && preview && <Preview text={preview} />}
                 </li>
               )
             })}

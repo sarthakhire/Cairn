@@ -6,6 +6,9 @@ const TONE = {
   'Handover approved': 'text-emerald-400',
   'Approval revoked': 'text-red-400',
   Acknowledged: 'text-primary',
+  'Gap answered': 'text-sky-400',
+  'Source imported': 'text-primary',
+  'Extraction run': 'text-primary',
 }
 
 function AuditLog({ entries }) {
@@ -43,4 +46,4 @@ function AuditLog({ entries }) {
   )
 }
 
-export default AuditLog
+export default AuditLog

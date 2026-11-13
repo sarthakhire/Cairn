@@ -28,9 +28,13 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
     )
   }
 
-  function save() {
+    function save() {
     const text = draft.trim()
     if (!text) return
+    if (text === claim.statement) {
+      setEditing(false)
+      return
+    }
     onEdit(claim.id, text)
     setEditing(false)
   }

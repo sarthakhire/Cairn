@@ -1,24 +1,29 @@
 import { useState } from 'react'
-import { USERS, authenticate } from '@/lib/users'
+import { USERS } from '@/lib/users'
+import { api } from '@/lib/api'
 import { ROLES } from '@/lib/roles'
 
 function roleLabel(role) {
   return ROLES.find((item) => item.value === role)?.label ?? role
 }
 
-function Login({ onLogin }) {
+function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  function attempt(emailValue, passwordValue) {
-    const user = authenticate(emailValue, passwordValue)
-    if (!user) {
-      setError('Wrong email or password.')
-      return
-    }
+  async function attempt(emailValue, passwordValue) {
+    setBusy(true)
     setError('')
-    onLogin(user)
+    try {
+      const user = await api.login(emailValue.trim(), passwordValue)
+      onLogin(user)
+    } catch (err) {
+      setError(err.status === 401 ? 'Wrong email or password.' : err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function handleSubmit(event) {
@@ -66,17 +71,18 @@ function Login({ onLogin }) {
             />
           </label>
 
-          {error && (
+          {(error || notice) && (
             <p role="alert" className="text-sm text-red-400">
-              {error}
+              {error || notice}
             </p>
           )}
 
           <button
             type="submit"
-            className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            disabled={busy}
+            className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            Sign in
+            {busy ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
@@ -90,6 +96,7 @@ function Login({ onLogin }) {
                 <button
                   type="button"
                   onClick={() => attempt(user.email, user.password)}
+                  disabled={busy}
                   className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary/60"
                 >
                   <span>{roleLabel(user.role)}</span>
@@ -101,8 +108,8 @@ function Login({ onLogin }) {
             ))}
           </ul>
           <p className="text-xs text-muted-foreground">
-            Demo login only. Real sign-in with server-checked tokens comes with
-            the backend.
+            Sign-in is checked by the server, and the server decides what each
+            role can see.
           </p>
         </section>
       </div>
@@ -110,4 +117,4 @@ function Login({ onLogin }) {
   )
 }
 
-export default Login
+export default Login
