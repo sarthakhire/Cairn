@@ -4,11 +4,14 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const User = require("./models/User");
 
+// Emails match the demo accounts the frontend already shows (client/src/lib/users.js).
 const USERS = [
-  { name: "Lead", email: "lead@cairn.demo", role: "lead" },
-  { name: "Incoming Lead", email: "incoming-lead@cairn.demo", role: "incoming_lead" },
-  { name: "Incoming Developer", email: "incoming-dev@cairn.demo", role: "incoming_developer" },
+  { name: "Demo Lead", email: "lead@demo.test", role: "lead" },
+  { name: "Demo Incoming lead", email: "incoming.lead@demo.test", role: "incoming_lead" },
+  { name: "Demo Incoming developer", email: "incoming.dev@demo.test", role: "incoming_developer" },
 ];
+// Accounts from the first version of this seed, removed so no stale logins remain.
+const OLD_EMAILS = ["lead@cairn.demo", "incoming-lead@cairn.demo", "incoming-dev@cairn.demo"];
 
 async function main() {
   if (!process.env.MONGO_URI) throw new Error("MONGO_URI is not set");
@@ -19,6 +22,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
 
   await mongoose.connect(process.env.MONGO_URI);
+  await User.deleteMany({ email: { $in: OLD_EMAILS } });
   for (const u of USERS) {
     await User.updateOne({ email: u.email }, { $set: { ...u, passwordHash } }, { upsert: true });
   }
@@ -30,4 +34,4 @@ async function main() {
 main().catch((err) => {
   console.error("Seed failed:", err.message);
   process.exit(1);
-});
+});

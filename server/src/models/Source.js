@@ -8,8 +8,11 @@ const sourceSchema = new Schema(
     sensitivity: { type: String, enum: SENSITIVITY, required: true },
     formality: { type: String, enum: FORMALITY, required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    // What was masked before the text was stored: { credential, email, phone, total }.
+    // null for restricted sources, which are stored as written.
+    redactions: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );
 
-module.exports = model("Source", sourceSchema);
+module.exports = model("Source", sourceSchema);

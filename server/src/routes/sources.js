@@ -4,6 +4,8 @@ const path = require("path");
 const Source = require("../models/Source");
 const Chunk = require("../models/Chunk");
 const { SENSITIVITY, FORMALITY } = require("../constants");
+const audit = require("../services/audit");
+const { redact, describeCounts } = require("../services/redact");
 const { parseSource, kindFromFilename, IngestError } = require("../services/ingest");
 
 const router = express.Router();
@@ -26,8 +28,34 @@ function receive(req, res, next) {
   });
 }
 
-// TODO(phase 4): protect with auth and allow only the "lead" role.
-// Until then this route is open, so do not deploy it.
+// Both routes are reviewer-only: app.js mounts this router behind auth and requireRole("lead").
+
+// The source list, with a chunk count per source. Never includes chunk text.
+router.get("/", async (req, res) => {
+  const [sources, counts] = await Promise.all([
+    Source.find().sort({ createdAt: -1 }).lean(),
+    Chunk.aggregate([{ $group: { _id: "$sourceId", n: { $sum: 1 } } }]),
+  ]);
+  const byId = new Map(counts.map((c) => [String(c._id), c.n]));
+  res.json(
+    sources.map((s) => ({
+      id: String(s._id),
+      name: s.name,
+      kind: s.kind,
+      sensitivity: s.sensitivity,
+      formality: s.formality,
+      chunkCount: byId.get(String(s._id)) || 0,
+      redactions: {
+        credential: (s.redactions && s.redactions.credential) || 0,
+        email: (s.redactions && s.redactions.email) || 0,
+        phone: (s.redactions && s.redactions.phone) || 0,
+      },
+      redactedTotal: (s.redactions && s.redactions.total) || 0,
+      at: new Date(s.createdAt).toISOString().slice(0, 19),
+    }))
+  );
+});
+
 router.post("/", receive, async (req, res, next) => {
   try {
     const { sensitivity } = req.body;
@@ -59,9 +87,22 @@ router.post("/", receive, async (req, res, next) => {
       return res.status(422).json({ error: "No readable content found in the file" });
     }
 
+    // Team and lead-only text is masked before it is stored, so only the redacted copy ever
+    // exists. Restricted sources are where secrets belong: stored as written, reviewer-only.
+    let redactions = null;
+    if (sensitivity !== "restricted") {
+      redactions = { credential: 0, email: 0, phone: 0, total: 0 };
+      parsed.chunks = parsed.chunks.map((c) => {
+        const cleaned = redact(c.text);
+        for (const key of ["credential", "email", "phone"]) redactions[key] += cleaned.counts[key];
+        redactions.total += cleaned.total;
+        return { ...c, text: cleaned.text };
+      });
+    }
+
     let source;
     try {
-      source = await Source.create({ name, kind: parsed.kind, sensitivity, formality });
+      source = await Source.create({ name, kind: parsed.kind, sensitivity, formality, redactions, uploadedBy: req.user.id });
     } catch (err) {
       if (err.code === 11000) {
         return res.status(409).json({ error: 'A source named "' + name + '" already exists' });
@@ -80,14 +121,30 @@ router.post("/", receive, async (req, res, next) => {
       throw err;
     }
 
+    await audit.record({
+      actorId: req.user.id,
+      action: "Source imported",
+      detail:
+        name + ", " + sensitivity + ", " + parsed.chunks.length + " chunks" +
+        (redactions && redactions.total > 0
+          ? ", " + redactions.total + " redacted (" + describeCounts(redactions) + ")"
+          : redactions ? ", nothing redacted" : ", stored as written"),
+    });
+
     // Counts only. The text of a restricted source must never come back in this response.
     res.status(201).json({
       source: { id: source.id, name, kind: parsed.kind, sensitivity, formality },
       chunkCount: parsed.chunks.length,
+      redactions: {
+        credential: redactions ? redactions.credential : 0,
+        email: redactions ? redactions.email : 0,
+        phone: redactions ? redactions.phone : 0,
+      },
+      redactedTotal: redactions ? redactions.total : 0,
     });
   } catch (err) {
     next(err);
   }
 });
 
-module.exports = router;
+module.exports = router;
