@@ -11,6 +11,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Claim = require("../src/models/Claim");
 const User = require("../src/models/User");
+const Handover = require("../src/models/Handover");
+const Version = require("../src/models/Version");
+const { serializeClaim } = require("../src/services/serializer");
 const app = require("../src/app");
 const { signToken } = require("../src/middleware/auth");
 
@@ -42,6 +45,13 @@ const chain = (result) => {
   return c;
 };
 Claim.find = () => chain(structuredClone(FIXTURES));
+
+// Incoming roles read the approved snapshot, so the fixtures are also stored as version 1.
+Handover.findById = () => chain({ _id: "handover", approvedVersion: 1, acknowledgements: {} });
+Version.findOne = () => chain({
+  number: 1, byName: "Lead", at: new Date("2026-03-02T18:40:00Z"),
+  claims: structuredClone(FIXTURES.map(serializeClaim)),
+});
 
 const tokenFor = (role) => signToken({ _id: "u_" + role, role, name: role });
 const get = (path, role) => request(app).get(path).set("Authorization", "Bearer " + tokenFor(role));
@@ -130,4 +140,4 @@ test("login rejects malformed bodies, including NoSQL operator objects", async (
     assert.equal(res.status, 400);
   }
   assert.equal(queried, false);
-});
+});
