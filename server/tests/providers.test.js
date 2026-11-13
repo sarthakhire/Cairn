@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { createGeminiProvider, LlmConfigError, LlmRateLimitError } = require("../src/services/llm");
+const { createGeminiProvider, LlmConfigError, LlmRateLimitError, LlmNetworkError } = require("../src/services/llm");
 
 process.env.LLM_PROVIDER = "gemini";
 process.env.LLM_MODEL = "test-model";
@@ -80,4 +80,51 @@ test("real calls are spaced by the minimum interval", () => withKey(async () => 
   await provider({ system: "s", user: "u" });
   assert.equal(sleeps.length, 1);
   assert.ok(sleeps[0] > 3000 && sleeps[0] <= 4000);
+}));
+
+const netFail = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+const timeoutFail = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+function setupThrowing(steps) {
+  const calls = [];
+  const sleeps = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    const step = steps.shift();
+    if (step instanceof Error) throw step;
+    return step;
+  };
+  const provider = createGeminiProvider({ fetchImpl, sleepFn: async (ms) => { sleeps.push(ms); }, minIntervalMs: 0 });
+  return { provider, calls, sleeps };
+}
+
+test("a reset connection or a timeout is retried and then succeeds", () => withKey(async () => {
+  const { provider, calls, sleeps } = setupThrowing([netFail(), timeoutFail(), reply(200, okBody)]);
+  assert.equal(await provider({ system: "s", user: "u" }), '{"a":1}');
+  assert.equal(calls.length, 3);
+  assert.deepEqual(sleeps, [5000, 10000]);
+}));
+
+test("a connection that keeps failing gives a clear network error that is also a 503 case", () => withKey(async () => {
+  const { provider, calls } = setupThrowing([netFail(), netFail(), netFail(), netFail()]);
+  await assert.rejects(
+    () => provider({ system: "s", user: "u" }),
+    (err) => err instanceof LlmNetworkError && err instanceof LlmRateLimitError && !err.message.includes("ECONNRESET")
+  );
+  assert.equal(calls.length, 4);
+}));
+
+test("an unrelated error thrown by fetch is not swallowed", () => withKey(async () => {
+  const { provider, calls } = setupThrowing([new RangeError("a real bug")]);
+  await assert.rejects(() => provider({ system: "s", user: "u" }), RangeError);
+  assert.equal(calls.length, 1);
+}));
+
+test("LLM_TIMEOUT_MS sets the request timeout", () => withKey(async () => {
+  const old = process.env.LLM_TIMEOUT_MS;
+  process.env.LLM_TIMEOUT_MS = "5000";
+  try {
+    const { provider, calls } = setup([reply(200, okBody)]);
+    await provider({ system: "s", user: "u" });
+    assert.ok(calls[0].init.signal instanceof AbortSignal);
+  } finally { if (old === undefined) delete process.env.LLM_TIMEOUT_MS; else process.env.LLM_TIMEOUT_MS = old; }
 }));

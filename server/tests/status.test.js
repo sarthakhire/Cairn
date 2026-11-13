@@ -31,3 +31,12 @@ test("no quote: gap types become missing, everything else is dropped", () => {
     assert.equal(assignStatus({ ...base, type, hasQuote: false }), null);
   }
 });
+
+test("an open question is always missing, even with a found, supported quote in a formal source", () => {
+  assert.equal(assignStatus({ ...base, type: "open_question" }), "missing");
+  assert.equal(assignStatus({ ...base, type: "open_question", formality: "informal" }), "missing");
+  assert.equal(assignStatus({ ...base, type: "open_question", quoteFound: false }), "missing");
+  // other types are unchanged
+  assert.equal(assignStatus({ ...base, type: "ownership" }), "verified");
+  assert.equal(assignStatus({ ...base, type: "risk_dependency" }), "verified");
+});

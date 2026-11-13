@@ -9,12 +9,16 @@ const path = require("path");
 class LlmConfigError extends Error {}
 class LlmOutputError extends Error {}
 class LlmRateLimitError extends Error {}
+// A dropped connection or a timeout that kept happening. Extends LlmRateLimitError so the
+// extract route already answers it with a clear 503.
+class LlmNetworkError extends LlmRateLimitError {}
 
 const DEFAULT_CACHE_DIR = path.join(__dirname, "..", "..", ".cache", "llm"); // git-ignored
 const DEFAULT_MODELS = { gemini: "gemini-flash-latest", anthropic: "claude-sonnet-5-5" };
 
 const providerName = () => (process.env.LLM_PROVIDER || "gemini").toLowerCase();
 const modelName = () => process.env.LLM_MODEL || DEFAULT_MODELS[providerName()];
+const timeoutMs = () => Number(process.env.LLM_TIMEOUT_MS) || 90_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Waits so that real calls are at least minIntervalMs apart (free tiers limit calls per minute).
@@ -33,7 +37,22 @@ function makePacer(minIntervalMs, sleepFn) {
 async function postWithRetry({ url, makeInit, fetchImpl, sleepFn, pace, retries = 3 }) {
   for (let attempt = 0; ; attempt++) {
     await pace();
-    const res = await fetchImpl(url, makeInit());
+    let res;
+    try {
+      res = await fetchImpl(url, makeInit());
+    } catch (err) {
+      // A reset connection or a timeout is retried like a busy server. Anything else is a real bug.
+      // The error text is not kept, because it can name the host.
+      const network = err && (err.name === "TimeoutError" || err.name === "AbortError" || (err instanceof TypeError && err.message === "fetch failed"));
+      if (!network) throw err;
+      if (attempt >= retries) {
+        throw new LlmNetworkError(
+          "Could not reach the AI service: the connection was reset or timed out. Check your network, then run again; finished steps are cached."
+        );
+      }
+      await sleepFn(Math.min(5000 * 2 ** attempt, 60_000));
+      continue;
+    }
     if (res.ok) return res;
     if (res.status !== 429 && res.status !== 503) {
       throw new Error("LLM request failed with status " + res.status);
@@ -69,7 +88,7 @@ function createGeminiProvider({
           contents: [{ role: "user", parts: [{ text: user }] }],
           generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: "application/json" },
         }),
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(timeoutMs()),
       }),
       fetchImpl,
       sleepFn,
@@ -99,7 +118,7 @@ function createAnthropicProvider({ fetchImpl = fetch, sleepFn = sleep, minInterv
           system,
           messages: [{ role: "user", content: user }],
         }),
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(timeoutMs()),
       }),
       fetchImpl,
       sleepFn,
@@ -184,4 +203,5 @@ module.exports = {
   LlmConfigError,
   LlmOutputError,
   LlmRateLimitError,
-};
+  LlmNetworkError,
+};

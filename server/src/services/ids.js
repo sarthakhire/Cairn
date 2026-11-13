@@ -7,9 +7,9 @@ async function nextClaimId() {
   const counter = await Counter.findOneAndUpdate(
     { _id: "claim" },
     { $inc: { seq: 1 } },
-    { new: true, upsert: true }
+    { returnDocument: "after", upsert: true }
   );
   return formatClaimId(counter.seq);
 }
 
-module.exports = { nextClaimId, formatClaimId };
+module.exports = { nextClaimId, formatClaimId };
