@@ -9,6 +9,16 @@
     "quote": "Decision: the club approved a paid hosting plan with a monthly budget.",
     "expect": { "result": "mismatch", "method": "none", "reason": "no close passage" }
   },
+    {
+    "id": "number-invented",
+    "note": "A real sentence with a number added that the source does not contain.",
+    "type": "decision",
+    "statement": "The team chose Postgres 14 for the reporting database.",
+    "source": "meeting-notes-03.md",
+    "chunk": 3,
+    "quote": "Decision: going with Postgres 14, the reporting queries need joins.",
+    "expect": { "result": "mismatch", "method": "fuzzy", "reason": "number differs" }
+  },
   {
     "id": "negation-flipped",
     "note": "A real sentence with the meaning reversed by inserting a negation.",
