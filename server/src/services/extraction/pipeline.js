@@ -2,7 +2,7 @@ const Chunk = require("../../models/Chunk");
 const Claim = require("../../models/Claim");
 const AuditLog = require("../../models/AuditLog");
 const { nextClaimId } = require("../ids");
-const { verifyQuote } = require("../verify");
+const { verifyQuote, matchQuote } = require("../verify");
 const { generateJson, LlmOutputError } = require("../llm");
 const { SENSITIVITY, CLAIM_TYPES } = require("../../constants");
 const { assignStatus } = require("./status");
@@ -115,6 +115,8 @@ async function finalizeTier(candidates, generate) {
     const hasQuote = quote.length > 0;
     const quoteFound = !!chunk && hasQuote && verifyQuote(quote, chunk.text);
     const supportsStatement = quoteFound ? await checkSupport({ statement: item.statement, quote }, generate) : null;
+        // Graded result, computed against the cited chunk only. Does not affect status.
+    const match = chunk && hasQuote ? matchQuote(quote, chunk.text, { supportsStatement }) : null;
 
     const status = assignStatus({
       type,
@@ -137,7 +139,7 @@ async function finalizeTier(candidates, generate) {
       statement: item.statement,
       status,
       baseStatus: status,
-      evidence: chunk && hasQuote ? [{ chunkId: chunk._id, quote, quoteFound, supportsStatement }] : [],
+      evidence: chunk && hasQuote ? [{ chunkId: chunk._id, quote, quoteFound, supportsStatement, match }] : [],
       nextAction: item.nextAction,
       // A claim with no quote, or a chunk label that does not exist, is by definition an inference.
       inference: item.inference || !chunk || !hasQuote,

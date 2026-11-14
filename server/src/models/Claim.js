@@ -7,12 +7,25 @@ const {
 } = require("../constants");
 const { hasVerifiedEvidence } = require("../services/verify");
 
+// Graded result from matchQuote (services/verify.js). null on claims made before Round 3.
+const matchSchema = new Schema(
+  {
+    result: { type: String, enum: ["verified", "partial", "mismatch"], required: true },
+    score: { type: Number, min: 0, max: 1, required: true },
+    method: { type: String, enum: ["exact", "fuzzy", "none"], required: true },
+    reason: { type: String, default: null },
+    closest: { type: String, default: null },
+  },
+  { _id: false }
+);
+
 const evidenceSchema = new Schema(
   {
     chunkId: { type: Schema.Types.ObjectId, ref: "Chunk", required: true },
     quote: { type: String, required: true }, // stored without the "..." wrapper
     quoteFound: { type: Boolean, required: true },
     supportsStatement: { type: Boolean, default: null }, // null = support check not run
+    match: { type: matchSchema, default: null },
   },
   { _id: false }
 );
