@@ -57,6 +57,7 @@ function App() {
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
+  const [verification, setVerification] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
 
   const role = user?.role
