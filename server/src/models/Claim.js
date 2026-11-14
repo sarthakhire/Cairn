@@ -48,6 +48,7 @@ const claimSchema = new Schema(
     nextAction: { type: String, default: null },
     conflictsWith: { type: [String], default: [] }, // claimIds
     inference: { type: Boolean, default: false },
+    planted: { type: Boolean, default: false }, // synthetic demo claims; never sent to the API
   },
   { timestamps: true }
 );
