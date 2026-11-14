@@ -150,6 +150,7 @@ function App() {
     setView('claims')
     setStatus('all')
     setType('all')
+    setVerification('all')
     setSelectedId(null)
     setGapNotice('')
   }
