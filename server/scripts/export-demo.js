@@ -40,7 +40,9 @@ async function main() {
       process.exit(1);
     }
   }
-  const file = path.join(__dirname, '..', '..', 'data', 'demo-snapshot.json');
+  const dir = path.join(__dirname, '..', '..', 'backup');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'demo-snapshot.json');
   fs.writeFileSync(file, text, 'utf8');
   console.log(`Wrote ${file} (${(text.length / 1024).toFixed(1)} KB)`);
   await mongoose.disconnect();
