@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "test": "node --test",
     "seed": "node src/seed.js",
-    "export:demo": "node scripts/export-demo.js"
+    "export:demo": "node scripts/export-demo.js",
+    "reverify": "node scripts/reverify.js"
   },
   "keywords": [],
   "author": "",
