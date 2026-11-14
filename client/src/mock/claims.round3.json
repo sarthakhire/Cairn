@@ -1,0 +1,511 @@
+[
+  {
+    "id": "c_001",
+    "type": "decision",
+    "statement": "The frontend is built with React and Vite.",
+    "status": "verified",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...frontend will be React with Vite, fast to set up...",
+        "source": "meeting-notes-01.md",
+        "chunk": 4,
+        "date": "2026-02-03",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "The frontend will be React with Vite, fast to set up."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "accepted",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:00:00",
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": [
+        {
+          "at": "2026-11-14T10:00:00",
+          "by": "Demo Lead",
+          "action": "accept",
+          "fromState": "draft",
+          "toState": "accepted",
+          "fromStatement": null,
+          "toStatement": null,
+          "reason": null
+        }
+      ]
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_002",
+    "type": "decision",
+    "statement": "The team chose PostgreSQL because the reporting queries need joins.",
+    "status": "conflicting",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...going with Postgres, the reporting queries need joins...",
+        "source": "meeting-notes-03.md",
+        "chunk": 12,
+        "date": "2026-02-14",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Going with Postgres, the reporting queries need joins."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": "migrate reporting views",
+    "conflictsWith": ["c_003"],
+    "inference": false
+  },
+  {
+    "id": "c_003",
+    "type": "decision",
+    "statement": "The team chose MongoDB because the data shape keeps changing.",
+    "status": "conflicting",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...let's just use Mongo, schema keeps changing every week...",
+        "source": "chat-export.md",
+        "chunk": 7,
+        "date": "2026-02-21",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Let's just use Mongo, schema keeps changing every week."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": ["c_002"],
+    "inference": false
+  },
+  {
+    "id": "c_004",
+    "type": "ownership",
+    "statement": "Riya appears to own the deployment.",
+    "status": "uncertain",
+    "verification": "partial",
+    "evidence": [
+      {
+        "quote": "...Riya pushed the last deploy, ask her if it breaks...",
+        "source": "chat-export.md",
+        "chunk": 15,
+        "date": "2026-02-27",
+        "match": {
+          "result": "partial",
+          "score": 0.88,
+          "method": "fuzzy",
+          "reason": null,
+          "closest": "Riya pushed last Friday's deploy, ask her if it breaks."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": "confirm deployment owner with Riya",
+    "conflictsWith": [],
+    "inference": true
+  },
+  {
+    "id": "c_005",
+    "type": "risk_dependency",
+    "statement": "Deployment depends on a free-tier hosting plan that ends on 30 March, so a paid plan is needed after that.",
+    "status": "verified",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...free tier ends 30 March, after that we need a paid plan...",
+        "source": "issues-export.json",
+        "chunk": 9,
+        "date": "2026-02-25",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Free tier ends 30 March, after that we need a paid plan."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "edited",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:20:00",
+      "edited": true,
+      "originalStatement": "Deployment depends on a free-tier hosting plan that ends on 30 March.",
+      "reason": null,
+      "override": null,
+      "history": [
+        {
+          "at": "2026-11-14T10:20:00",
+          "by": "Demo Lead",
+          "action": "edit",
+          "fromState": "draft",
+          "toState": "edited",
+          "fromStatement": "Deployment depends on a free-tier hosting plan that ends on 30 March.",
+          "toStatement": "Deployment depends on a free-tier hosting plan that ends on 30 March, so a paid plan is needed after that.",
+          "reason": null
+        }
+      ]
+    },
+    "nextAction": "decide on a paid plan before 30 March",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_006",
+    "type": "open_question",
+    "statement": "Who owns the deployment credentials?",
+    "status": "missing",
+    "verification": "none",
+    "evidence": [],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": "ask the departing member before handover",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_007",
+    "type": "decision",
+    "statement": "Restricted: request access from reviewer",
+    "status": "verified",
+    "verification": "none",
+    "evidence": [],
+    "visibility": "restricted",
+    "review": {
+      "state": "accepted",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:05:00",
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_008",
+    "type": "risk_dependency",
+    "statement": "A partner club expects a working demo by 15 April, promised verbally by the previous lead.",
+    "status": "uncertain",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...told them we would show a demo by mid April, no need to write it down...",
+        "source": "leads-private-notes.md",
+        "chunk": 3,
+        "date": "2026-03-01",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Told them we would show a demo by mid April, no need to write it down."
+        }
+      }
+    ],
+    "visibility": "lead_only",
+    "review": {
+      "state": "accepted",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:10:00",
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": "confirm the demo date with the partner club",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_009",
+    "type": "next_action",
+    "statement": "The reporting views need to be moved to the new schema.",
+    "status": "verified",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...next sprint we move the reporting views over, Aman has the branch...",
+        "source": "issues-export.json",
+        "chunk": 14,
+        "date": "2026-03-01",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Next sprint we move the reporting views over, Aman has the branch."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "accepted",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:12:00",
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": "review Aman's migration branch",
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_010",
+    "type": "next_action",
+    "statement": "The login page task is still in progress.",
+    "status": "uncertain",
+    "verification": "verified",
+    "evidence": [
+      {
+        "quote": "...login page, in progress, assigned to Karan...",
+        "source": "tasks.csv",
+        "chunk": 2,
+        "date": "2026-01-20",
+        "match": {
+          "result": "verified",
+          "score": 1,
+          "method": "exact",
+          "reason": null,
+          "closest": "Login page, in progress, assigned to Karan."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "rejected",
+      "by": "Demo Lead",
+      "at": "2026-11-14T10:30:00",
+      "edited": false,
+      "originalStatement": null,
+      "reason": "The task board entry is from January and the login page was finished in February.",
+      "override": null,
+      "history": [
+        {
+          "at": "2026-11-14T10:30:00",
+          "by": "Demo Lead",
+          "action": "reject",
+          "fromState": "draft",
+          "toState": "rejected",
+          "fromStatement": null,
+          "toStatement": null,
+          "reason": "The task board entry is from January and the login page was finished in February."
+        }
+      ]
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_011",
+    "type": "decision",
+    "statement": "Deploys run automatically every night at 2 am.",
+    "status": "uncertain",
+    "verification": "mismatch",
+    "evidence": [
+      {
+        "quote": "...nightly auto deploy runs at 2 am sharp...",
+        "source": "meeting-notes-03.md",
+        "chunk": 5,
+        "date": "2026-02-14",
+        "match": {
+          "result": "mismatch",
+          "score": 0.18,
+          "method": "fuzzy",
+          "reason": "No close passage in the cited chunk",
+          "closest": "Deploys are manual. Riya runs them after the lead says go."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_012",
+    "type": "risk_dependency",
+    "statement": "The free hosting plan ends on 30 April.",
+    "status": "uncertain",
+    "verification": "mismatch",
+    "evidence": [
+      {
+        "quote": "...free tier ends 30 April, after that we need a paid plan...",
+        "source": "issues-export.json",
+        "chunk": 9,
+        "date": "2026-02-25",
+        "match": {
+          "result": "mismatch",
+          "score": 0.93,
+          "method": "fuzzy",
+          "reason": "Number differs",
+          "closest": "Free tier ends 30 March, after that we need a paid plan."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_013",
+    "type": "decision",
+    "statement": "Reviews are not required before merging.",
+    "status": "uncertain",
+    "verification": "mismatch",
+    "evidence": [
+      {
+        "quote": "...reviews are not required before merging...",
+        "source": "meeting-notes-01.md",
+        "chunk": 8,
+        "date": "2026-02-03",
+        "match": {
+          "result": "mismatch",
+          "score": 0.91,
+          "method": "fuzzy",
+          "reason": "Negation differs",
+          "closest": "Reviews are required before merging."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  },
+  {
+    "id": "c_014",
+    "type": "decision",
+    "statement": "Every pull request needs one review before merging.",
+    "status": "uncertain",
+    "verification": "partial",
+    "evidence": [
+      {
+        "quote": "...every pull request needs one review befor merging...",
+        "source": "meeting-notes-01.md",
+        "chunk": 8,
+        "date": "2026-02-03",
+        "match": {
+          "result": "partial",
+          "score": 0.94,
+          "method": "fuzzy",
+          "reason": null,
+          "closest": "Every pull request needs one review before merging."
+        }
+      }
+    ],
+    "visibility": "team",
+    "review": {
+      "state": "draft",
+      "by": null,
+      "at": null,
+      "edited": false,
+      "originalStatement": null,
+      "reason": null,
+      "override": null,
+      "history": []
+    },
+    "nextAction": null,
+    "conflictsWith": [],
+    "inference": false
+  }
+]
