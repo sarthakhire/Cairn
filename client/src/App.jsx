@@ -137,7 +137,8 @@ function App() {
   const visibleClaims = roleClaims.filter(
     (claim) =>
       (status === 'all' || claim.status === status) &&
-      (type === 'all' || claim.type === type)
+      (type === 'all' || claim.type === type) &&
+      (verification === 'all' || (claim.verification ?? 'none') === verification)
   )
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
