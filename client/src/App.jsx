@@ -57,6 +57,7 @@ function App() {
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
+  const [verification, setVerification] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
 
   const role = user?.role
@@ -136,7 +137,8 @@ function App() {
   const visibleClaims = roleClaims.filter(
     (claim) =>
       (status === 'all' || claim.status === status) &&
-      (type === 'all' || claim.type === type)
+      (type === 'all' || claim.type === type) &&
+      (verification === 'all' || (claim.verification ?? 'none') === verification)
   )
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
@@ -148,6 +150,7 @@ function App() {
     setView('claims')
     setStatus('all')
     setType('all')
+    setVerification('all')
     setSelectedId(null)
     setGapNotice('')
   }
@@ -308,8 +311,11 @@ function App() {
                     <FilterBar
                       status={status}
                       type={type}
+                      verification={verification}
+                      showVerification={roleClaims.some((claim) => claim.verification)}
                       onStatusChange={setStatus}
                       onTypeChange={setType}
+                      onVerificationChange={setVerification}
                     />
 
                     <p className="text-xs text-muted-foreground">
