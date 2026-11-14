@@ -311,8 +311,11 @@ function App() {
                     <FilterBar
                       status={status}
                       type={type}
+                      verification={verification}
+                      showVerification={roleClaims.some((claim) => claim.verification)}
                       onStatusChange={setStatus}
                       onTypeChange={setType}
+                      onVerificationChange={setVerification}
                     />
 
                     <p className="text-xs text-muted-foreground">
