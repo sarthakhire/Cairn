@@ -6,11 +6,16 @@ const audit = require("../services/audit");
 const router = Router();
 
 // Turns a HandoverError into its status code. Anything else is a real 500.
+// A blocked approval also carries the list of blockers.
 const guard = (fn) => async (req, res) => {
   try {
     await fn(req, res);
   } catch (err) {
-    if (err instanceof handover.HandoverError) return res.status(err.status).json({ error: err.message });
+    if (err instanceof handover.HandoverError) {
+      const body = { error: err.message };
+      if (err.blockers) body.blockers = err.blockers;
+      return res.status(err.status).json(body);
+    }
     throw err;
   }
 };
@@ -21,10 +26,13 @@ router.get("/", guard(async (req, res) => {
 
 router.post("/", requireRole("lead"), guard(async (req, res) => {
   const { number, summary } = await handover.approve(req.user);
+  const w = summary.warnings;
   await audit.record({
     actorId: req.user.id,
     action: "Handover approved",
-    detail: "Version " + number + ". " + summary.draft + " claims were still draft at approval.",
+    detail:
+      "Version " + number + ". Warnings: " + w.partial + " partial, " + w.uncertain + " uncertain, " +
+      w.missing + " missing, " + w.conflicting + " conflicting.",
     after: { version: number, summary },
   });
   res.status(201).json(await handover.stateFor(req.user));

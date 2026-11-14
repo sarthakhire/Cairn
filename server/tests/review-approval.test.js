@@ -19,7 +19,8 @@ const SECRETS = { restricted: "FAKE_KEY_abc123", leadOnly: "LEADONLY_BUDGET_TALK
 const chunk = (n, name) => ({ n, timestamp: new Date("2026-02-03T00:00:00Z"), sourceId: { name } });
 const stored = (claimId, visibility, state, statement, quote) => ({
   claimId, type: "decision", statement, status: "uncertain", visibility,
-  evidence: [{ quote, chunkId: chunk(1, "src.md") }],
+  // Found quote with a yes from the support check, so these claims are "verified" and never block approval.
+  evidence: [{ quote, quoteFound: true, supportsStatement: true, chunkId: chunk(1, "src.md") }],
   review: { state, reviewerId: state === "draft" ? null : { name: "Lead" }, at: null },
   nextAction: null, conflictsWith: [], inference: false,
 });
@@ -88,6 +89,14 @@ const call = (method, path, role, body) => {
 const ids = (res) => res.body.map((c) => c.id);
 const INCOMING = ["incoming_lead", "incoming_developer"];
 
+// Approval is blocked while any claim is a draft, so tests that approve settle the draft first.
+// A rejected claim is hidden from incoming roles exactly like a draft, so the leak checks still mean the same.
+const settle = () => {
+  for (const c of live) {
+    if (c.review.state === "draft") c.review = { state: "rejected", reviewerId: { name: "Lead" }, at: null };
+  }
+};
+
 test("incoming roles see nothing until a version is approved", async () => {
   reset();
   for (const role of INCOMING) {
@@ -103,15 +112,17 @@ test("incoming roles see nothing until a version is approved", async () => {
 
 test("approve saves a version, incoming roles see that snapshot, later edits stay hidden until re-approval", async () => {
   reset();
+  settle();
   const approved = await call("post", "/api/approval", "lead");
   assert.equal(approved.status, 201);
   assert.equal(approved.body.approval.version, 1);
   assert.equal(approved.body.approval.by, "Name lead");
   assert.equal(approved.body.versions.length, 1);
   assert.equal(approved.body.versions[0].summary.total, 5);
-  assert.equal(approved.body.versions[0].summary.draft, 1);
+  assert.equal(approved.body.versions[0].summary.draft, 0);
+  assert.deepEqual(approved.body.versions[0].summary.warnings, { partial: 0, uncertain: 3, missing: 0, conflicting: 0 });
   assert.equal(audits.at(-1).action, "Handover approved");
-  assert.equal(audits.at(-1).detail, "Version 1. 1 claims were still draft at approval.");
+  assert.equal(audits.at(-1).detail, "Version 1. Warnings: 0 partial, 3 uncertain, 0 missing, 0 conflicting.");
 
   assert.deepEqual(ids(await call("get", "/api/claims", "incoming_lead")), ["c_001", "c_002", "c_003"]);
   assert.deepEqual(ids(await call("get", "/api/claims", "incoming_developer")), ["c_001", "c_003"]);
@@ -130,7 +141,8 @@ test("approve saves a version, incoming roles see that snapshot, later edits sta
 
 test("the snapshot never leaks restricted, lead-only or draft text to the wrong role", async () => {
   reset();
-  await call("post", "/api/approval", "lead");
+  settle();
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
 
   const dev = JSON.stringify([
     (await call("get", "/api/claims", "incoming_developer")).body,
@@ -150,6 +162,7 @@ test("the snapshot never leaks restricted, lead-only or draft text to the wrong 
 
 test("only the reviewer can approve or revoke; revoke hides everything again", async () => {
   reset();
+  settle();
   assert.equal((await call("post", "/api/approval")).status, 401);
   for (const role of INCOMING) {
     assert.equal((await call("post", "/api/approval", role)).status, 403);
@@ -216,6 +229,7 @@ test("review: bad input and wrong roles are rejected before anything is written"
 
 test("acknowledge: only incoming roles, only after approval, first time is kept", async () => {
   reset();
+  settle();
   assert.equal((await call("post", "/api/approval/acknowledge", "incoming_developer")).status, 409);
   assert.equal((await call("post", "/api/approval/acknowledge", "lead")).status, 403);
   assert.equal((await call("post", "/api/approval/acknowledge")).status, 401);
@@ -237,7 +251,9 @@ test("acknowledge: only incoming roles, only after approval, first time is kept"
   const other = await call("get", "/api/approval", "incoming_lead");
   assert.deepEqual(other.body.acknowledgements, {}); // one role never sees the other's receipt
 
-  await call("post", "/api/approval", "lead"); // a new version clears receipts
+  // A new version clears receipts. Something must change first, or approval says "nothing changed".
+  await call("patch", "/api/claims/c_001", "lead", { action: "edit", statement: "Reworded after approval" });
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
   assert.deepEqual((await call("get", "/api/approval", "lead")).body.acknowledgements, {});
 });
 
@@ -275,4 +291,53 @@ test("audit: reviewer only, newest first, extraction rows get a readable form", 
     { at: "2026-03-02T11:00:00", actor: "Name lead", action: "Extraction run", detail: "12 claims created, 5 verified, 9 drafts replaced" },
     { at: "2026-03-02T10:00:00", actor: "Unknown", action: "Edited", detail: null },
   ]);
+});
+
+// ---- Approval gate (Round 3) ----
+
+test("approval is blocked by a draft and by an accepted mismatch, and names the claims", async () => {
+  reset();
+  live[0].evidence[0].quoteFound = false; // c_001 is accepted but its quote no longer matches
+  const res = await call("post", "/api/approval", "lead");
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error, "2 claims block approval");
+  assert.deepEqual(res.body.blockers, [
+    { id: "c_001", kind: "mismatch", message: "Accepted but the quote does not match the source" },
+    { id: "c_004", kind: "draft", message: "Still a draft" },
+  ]);
+  assert.equal(versions.length, 0);
+  assert.equal(audits.length, 0);
+  assert.equal(handoverUpdates, 0);
+  assert.deepEqual((await call("get", "/api/claims", "incoming_lead")).body, []); // nothing was shared
+});
+
+test("a partial claim does not block approval, it is counted as a warning", async () => {
+  reset();
+  settle();
+  live[0].evidence[0].supportsStatement = null; // quote found, support check not run
+  const res = await call("post", "/api/approval", "lead");
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.versions[0].summary.warnings, { partial: 1, uncertain: 3, missing: 0, conflicting: 0 });
+});
+
+test("approving twice in a row makes one version and one audit row", async () => {
+  reset();
+  settle();
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
+  const again = await call("post", "/api/approval", "lead");
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error, "Version 1 is already approved and nothing changed");
+  assert.equal(again.body.blockers, undefined);
+  assert.equal(versions.length, 1);
+  assert.equal(audits.filter((a) => a.action === "Handover approved").length, 1);
+});
+
+test("after a revoke the same content can be approved again as a new version", async () => {
+  reset();
+  settle();
+  await call("post", "/api/approval", "lead");
+  await call("delete", "/api/approval", "lead");
+  const again = await call("post", "/api/approval", "lead");
+  assert.equal(again.status, 201);
+  assert.equal(again.body.approval.version, 2);
 });

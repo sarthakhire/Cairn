@@ -16,6 +16,7 @@ const versionSchema = new Schema({
     conflicts: Number,
     missing: Number,
     draft: Number,
+    warnings: { partial: Number, uncertain: Number, missing: Number, conflicting: Number },
   },
 });
 

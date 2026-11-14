@@ -2,15 +2,17 @@ const Handover = require("../models/Handover");
 const Version = require("../models/Version");
 const { loadSerialized } = require("./claimStore");
 const { summarize, countChanges } = require("./versions");
+const { findBlockers, warningCounts, sameClaims } = require("./approvalGate");
 
 const STATE_ID = "handover";
 const INCOMING_ROLES = ["incoming_lead", "incoming_developer"];
 const isoSeconds = (d) => new Date(d).toISOString().slice(0, 19);
 
 class HandoverError extends Error {
-  constructor(status, message) {
+  constructor(status, message, blockers) {
     super(message);
     this.status = status;
+    if (blockers) this.blockers = blockers;
   }
 }
 
@@ -32,9 +34,23 @@ async function currentApproval() {
 
 async function approve(user) {
   const claims = await loadSerialized({});
+
+  // 1. Blockers: drafts, and accepted claims whose quote does not match the source.
+  const blockers = findBlockers(claims);
+  if (blockers.length) {
+    const n = blockers.length;
+    throw new HandoverError(409, n === 1 ? "1 claim blocks approval" : n + " claims block approval", blockers);
+  }
+
+  // 2. Nothing changed since the approved version: no new version, no new audit row.
+  const current = await currentApproval();
+  if (current && sameClaims(current.claims, claims)) {
+    throw new HandoverError(409, "Version " + current.number + " is already approved and nothing changed");
+  }
+
   const last = await Version.findOne().sort({ number: -1 }).select("number").lean();
   const number = last ? last.number + 1 : 1;
-  const summary = summarize(claims);
+  const summary = { ...summarize(claims), warnings: warningCounts(claims) };
   try {
     await Version.create({ number, by: user.id, byName: user.name, at: new Date(), claims, summary });
   } catch (err) {
