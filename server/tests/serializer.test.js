@@ -13,6 +13,8 @@ test("serializer output matches the frontend mock (c_001)", () => {
     evidence: [
       {
         quote: "frontend will be React with Vite, fast to set up",
+        quoteFound: true,
+        supportsStatement: true,
         chunkId: {
           n: 4,
           timestamp: new Date("2026-02-03T00:00:00Z"),
@@ -29,7 +31,14 @@ test("serializer output matches the frontend mock (c_001)", () => {
     conflictsWith: [],
     inference: false,
   };
-  assert.deepEqual(serializeClaim(stored), mock.find((c) => c.id === "c_001"));
+   const out = serializeClaim(stored);
+  // Round 3 added `verification` and `evidence[].match`. The mock does not have them yet
+  // (client/src/mock/claims.json), so compare the Round 2 shape and check the new fields apart.
+  const { verification, ...rest } = out;
+  rest.evidence = rest.evidence.map(({ match, ...e }) => e);
+  assert.deepEqual(rest, mock.find((c) => c.id === "c_001"));
+  assert.equal(verification, "verified");
+  assert.equal(out.evidence[0].match.result, "verified");
 });
 
 test("unreviewed claim has null by/at and empty evidence is allowed", () => {

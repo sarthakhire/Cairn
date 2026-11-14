@@ -40,11 +40,29 @@ function maskRestricted(c) {
   };
 }
 
+// `closest` is source text around the quote. The reviewer approved the quote,
+// not the text around it, so only the reviewer gets it. Built field by field,
+// so a field added to evidence or match later is not shared by accident.
+function withoutClosest(claim) {
+  return {
+    ...claim,
+    evidence: (claim.evidence || []).map((e) => ({
+      quote: e.quote,
+      source: e.source,
+      chunk: e.chunk,
+      date: e.date,
+      match: e.match
+        ? { result: e.match.result, score: e.match.score, method: e.match.method, reason: e.match.reason, closest: null }
+        : e.match,
+    })),
+  };
+}
+
 // Takes a claim already in contract shape. Returns what this role may see,
 // or null when the claim must not appear at all.
 function viewClaim(role, claim) {
   if (!canReview(role) && !isApproved(claim.review && claim.review.state)) return null;
-  if (canSee(role, claim.visibility)) return claim;
+  if (canSee(role, claim.visibility)) return canReview(role) ? claim : withoutClosest(claim);
   if (claim.visibility === "restricted") return maskRestricted(claim);
   return null; // lead_only for a developer: no placeholder, no count
 }
