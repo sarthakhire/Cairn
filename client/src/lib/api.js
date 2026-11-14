@@ -3,6 +3,7 @@
 // The server decides what each role may see. This file never filters or
 // hides anything: it sends the signed-in user's token and returns what comes back.
 
+import { createMockApi } from '@/lib/mockApi'
 const BASE = (import.meta.env?.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '')
 const KEY = 'handovertrail.session'
 
@@ -76,7 +77,7 @@ async function request(method, path, { body, form } = {}) {
   return data
 }
 
-export const api = {
+const realApi = {
   currentUser: () => session?.user ?? null,
 
   // Called when the server rejects the saved token (it expired or was revoked).
@@ -119,3 +120,9 @@ export const api = {
     return request('POST', '/api/sources', { form })
   },
 }
+
+// Local UI work without a server: set VITE_USE_MOCK=true in client/.env.development.local.
+// Only the dev server reads that file, so a production build can never run on mock data.
+const USE_MOCK = import.meta.env?.DEV === true && import.meta.env?.VITE_USE_MOCK === 'true'
+
+export const api = USE_MOCK ? createMockApi(ApiError) : realApi
