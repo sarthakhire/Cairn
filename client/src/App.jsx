@@ -193,9 +193,27 @@ function App() {
     return result
   }
 
-  function handleApprove() {
-    return act(() => api.approve())
-  }
+    async function handleApprove() {
+    setBusy(true)
+    setNotice('')
+    try {
+      await api.approve()
+      setIssue(NO_ISSUE)
+      applyData(await fetchAll(role))
+    } catch (err) {
+      // A 409 with blockers is a list to work through, not an error banner.
+      if (err.status === 409) {
+        setIssue({
+          message: err.message,
+          blockers: Array.isArray(err.body?.blockers) ? err.body.blockers : [],
+        })
+      } else {
+        setNotice(err.message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  } 
 
   function handleRevoke() {
     return act(() => api.revoke())
