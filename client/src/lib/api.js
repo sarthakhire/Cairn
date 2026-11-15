@@ -96,9 +96,11 @@ const realApi = {
   },
 
   claims: () => request('GET', '/api/claims'),
-  review: (id, action, statement) =>
+  // `extra` is either the new statement (a string) or an object with optional
+  // statement, reason or override.
+  review: (id, action, extra) =>
     request('PATCH', `/api/claims/${id}`, {
-      body: action === 'edit' ? { action, statement } : { action },
+      body: { action, ...(typeof extra === 'string' ? { statement: extra } : extra) },
     }),
   resolve: (keepId, dropId) => request('POST', '/api/claims/resolve', { body: { keepId, dropId } }),
   resolutions: () => request('GET', '/api/claims/resolutions'),
