@@ -18,8 +18,10 @@ import UserBar from '@/components/UserBar'
 import { canReview } from '@/lib/roles'
 import { findGaps } from '@/lib/gaps'
 import { describeCounts } from '@/lib/redact'
+import { countWarnings } from '@/lib/warnings'
 import { api } from '@/lib/api'
 
+const NO_ISSUE = { message: '', blockers: [] }
 const EMPTY_APPROVAL = {
   approval: null,
   acknowledgements: {},
@@ -54,6 +56,7 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [gapNotice, setGapNotice] = useState('')
+  const [issue, setIssue] = useState(NO_ISSUE)
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
@@ -76,6 +79,7 @@ function App() {
     setAuditLog([])
     setSources([])
     setResolutions([])
+    setIssue(NO_ISSUE)
   }, [])
 
   // The server rejected our token (expired or revoked): go back to sign-in.
@@ -172,6 +176,7 @@ function App() {
     try {
       const result = await change()
       applyData(await fetchAll(role))
+      setIssue(NO_ISSUE)
       return result ?? true
     } catch (err) {
       setNotice(err.message)
@@ -188,9 +193,27 @@ function App() {
     return result
   }
 
-  function handleApprove() {
-    return act(() => api.approve())
-  }
+    async function handleApprove() {
+    setBusy(true)
+    setNotice('')
+    try {
+      await api.approve()
+      setIssue(NO_ISSUE)
+      applyData(await fetchAll(role))
+    } catch (err) {
+      // A 409 with blockers is a list to work through, not an error banner.
+      if (err.status === 409) {
+        setIssue({
+          message: err.message,
+          blockers: Array.isArray(err.body?.blockers) ? err.body.blockers : [],
+        })
+      } else {
+        setNotice(err.message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  } 
 
   function handleRevoke() {
     return act(() => api.revoke())
@@ -200,12 +223,15 @@ function App() {
     return act(() => api.acknowledge())
   }
 
-  function handleReview(id, state) {
-    return act(() => api.review(id, state === 'accepted' ? 'accept' : 'reject'))
+  // The drawer sends 'accept' or 'reject' with an optional reason or override.
+  // The older 'accepted' and 'rejected' spellings are still understood.
+  function handleReview(id, action, extra) {
+    const name = action === 'accepted' ? 'accept' : action === 'rejected' ? 'reject' : action
+    return act(() => api.review(id, name, extra))
   }
 
-  function handleEdit(id, statement) {
-    return act(() => api.review(id, 'edit', statement))
+  function handleEdit(id, statement, extra) {
+    return act(() => api.review(id, 'edit', { statement, ...extra }))
   }
 
   function handleResolve(keepId, dropId) {
@@ -275,6 +301,11 @@ function App() {
               nextVersion={nextVersion}
               onApprove={handleApprove}
               onRevoke={handleRevoke}
+              issue={issue}
+              warnings={role === 'lead' ? countWarnings(claims) : null}
+              claims={claims}
+              busy={busy}
+              onSelectClaim={setSelectedId}
             />
 
             <AcknowledgeBar
@@ -395,6 +426,7 @@ function App() {
         onReview={handleReview}
         onEdit={handleEdit}
         canReview={canReview(role)}
+        error={notice}
       />
     </div>
   )
