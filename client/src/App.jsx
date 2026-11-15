@@ -56,6 +56,7 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [gapNotice, setGapNotice] = useState('')
+  const [issue, setIssue] = useState(NO_ISSUE)
   const [view, setView] = useState('claims')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
