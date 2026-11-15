@@ -21,6 +21,7 @@ import { describeCounts } from '@/lib/redact'
 import { countWarnings } from '@/lib/warnings'
 import { api } from '@/lib/api'
 
+const NO_ISSUE = { message: '', blockers: [] }
 const EMPTY_APPROVAL = {
   approval: null,
   acknowledgements: {},
