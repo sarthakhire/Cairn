@@ -87,6 +87,13 @@ const blankReview = () => ({
 // What an incoming role may see of a review: no reason, override, history or original text.
 const publicReview = (r) => ({ state: r.state, by: r.by, at: r.at, edited: Boolean(r.edited) })
 
+// Incoming roles never get the closest source passage: it is the real source text.
+const hideClosest = (c) => ({
+  ...c,
+  evidence: c.evidence.map((e) =>
+    e.match ? { ...e, match: { ...e.match, closest: null } } : e
+  ),
+})
 // Built field by field so nothing from the real claim can slip through.
 function masked(c) {
   return {
