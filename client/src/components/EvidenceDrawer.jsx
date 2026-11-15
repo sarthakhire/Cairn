@@ -11,6 +11,9 @@ import StatusBadge from '@/components/StatusBadge'
 import VerificationBadge from '@/components/VerificationBadge'
 import { diffWords, stripEdgeEllipsis } from '@/lib/diff'
 
+const MIN_REASON = 10
+const MAX_REASON = 500
+
 // Changed words are underlined as well as coloured, so colour is never the only cue.
 function Words({ words }) {
   return (
@@ -88,10 +91,55 @@ function EvidenceItem({ item, canReview }) {
   )
 }
 
-function ReviewSection({ claim, onReview, onEdit, canReview }) {
-  const [editing, setEditing] = useState(false)
+function ReasonField({ id, label, value, onChange }) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-xs text-muted-foreground">
+        {label}
+      </label>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={3}
+        maxLength={MAX_REASON}
+        className="w-full rounded-md border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <p className="text-xs text-muted-foreground">
+        {MIN_REASON} to {MAX_REASON} characters ({value.trim().length}/{MAX_REASON})
+      </p>
+    </div>
+  )
+}
+
+function ReviewSection({ claim, onReview, onEdit, canReview, error }) {
+  const [mode, setMode] = useState('idle')
   const [draft, setDraft] = useState(claim.statement)
+  const [reason, setReason] = useState('')
+  const [pending, setPending] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  const review = claim.review
+  const mismatch = claim.verification === 'mismatch'
   const canEdit = claim.visibility !== 'restricted'
+
+  const summary = (
+    <>
+      <p className="text-sm">
+        {review.state}
+        {review.by && ` by ${review.by}`}
+        {review.at && `, ${review.at.replace('T', ' ')}`}
+      </p>
+      {canReview && review.reason && (
+        <p className="text-xs text-muted-foreground">Reason: {review.reason}</p>
+      )}
+      {canReview && review.override?.reason && (
+        <p className="text-xs text-amber-400">
+          Accepted despite a quote mismatch: {review.override.reason}
+        </p>
+      )}
+    </>
+  )
 
   if (!canReview) {
     return (
@@ -99,29 +147,42 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
         <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
           Review
         </h3>
-        <p className="text-sm">
-          {claim.review.state}
-          {claim.review.by && ` by ${claim.review.by}`}
-          {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
-        </p>
+        {summary}
       </section>
     )
   }
 
-  function save() {
-    const text = draft.trim()
-    if (!text) return
-    if (text === claim.statement) {
-      setEditing(false)
-      return
+  const reasonOk = reason.trim().length >= MIN_REASON
+  const text = draft.trim()
+  const editOk = text.length > 0 && text !== claim.statement && (!mismatch || reasonOk)
+
+  async function run(task) {
+    if (pending) return
+    setPending(true)
+    setFailed(false)
+    try {
+      const ok = await task()
+      if (ok) {
+        setMode('idle')
+        setReason('')
+      } else {
+        setFailed(true)
+      }
+    } finally {
+      setPending(false)
     }
-    onEdit(claim.id, text)
-    setEditing(false)
   }
 
   function cancel() {
+    setMode('idle')
+    setReason('')
     setDraft(claim.statement)
-    setEditing(false)
+    setFailed(false)
+  }
+
+  function startAccept() {
+    if (mismatch) setMode('accept')
+    else run(() => onReview(claim.id, 'accept'))
   }
 
   return (
@@ -129,54 +190,137 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
       <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
         Review
       </h3>
-      <p className="text-sm">
-        {claim.review.state}
-        {claim.review.by && ` by ${claim.review.by}`}
-        {claim.review.at && `, ${claim.review.at.replace('T', ' ')}`}
-      </p>
+      <div className="space-y-1">{summary}</div>
 
-      {editing ? (
-        <div className="space-y-2">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={4}
-            aria-label="Edit claim statement"
-            className="w-full rounded-md border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={save}>
-              Save
-            </Button>
-            <Button size="sm" variant="outline" onClick={cancel}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => onReview(claim.id, 'accepted')}>
+      {mode === 'idle' && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={pending} onClick={startAccept}>
             Accept
           </Button>
           {canEdit && (
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setMode('edit')}
+            >
               Edit
             </Button>
           )}
           <Button
             size="sm"
             variant="destructive"
-            onClick={() => onReview(claim.id, 'rejected')}
+            disabled={pending}
+            onClick={() => setMode('reject')}
           >
             Reject
           </Button>
         </div>
       )}
+
+      {mode === 'accept' && (
+        <div className="space-y-2 rounded-md border border-amber-500/30 p-3">
+          <p className="text-xs text-amber-400">
+            The quote does not match the source. Accepting it needs a reason.
+          </p>
+          <ReasonField
+            id="override-reason"
+            label="Why accept this claim anyway?"
+            value={reason}
+            onChange={setReason}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={!reasonOk || pending}
+              onClick={() =>
+                run(() => onReview(claim.id, 'accept', { override: reason.trim() }))
+              }
+            >
+              Accept anyway
+            </Button>
+            <Button size="sm" variant="outline" disabled={pending} onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'reject' && (
+        <div className="space-y-2 rounded-md border border-red-500/30 p-3">
+          <ReasonField
+            id="reject-reason"
+            label="Why is this claim rejected?"
+            value={reason}
+            onChange={setReason}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!reasonOk || pending}
+              onClick={() =>
+                run(() => onReview(claim.id, 'reject', { reason: reason.trim() }))
+              }
+            >
+              Reject claim
+            </Button>
+            <Button size="sm" variant="outline" disabled={pending} onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'edit' && (
+        <div className="space-y-2">
+          <label htmlFor="edit-statement" className="block text-xs text-muted-foreground">
+            Edit the claim statement
+          </label>
+          <textarea
+            id="edit-statement"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={4}
+            className="w-full rounded-md border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          {mismatch && (
+            <ReasonField
+              id="edit-override"
+              label="The quote does not match the source. Why keep this claim?"
+              value={reason}
+              onChange={setReason}
+            />
+          )}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={!editOk || pending}
+              onClick={() =>
+                run(() =>
+                  onEdit(claim.id, text, mismatch ? { override: reason.trim() } : undefined)
+                )
+              }
+            >
+              Save
+            </Button>
+            <Button size="sm" variant="outline" disabled={pending} onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {failed && error && (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
     </section>
   )
 }
 
-function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview }) {
+function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview, error = '' }) {
   const conflicts = claim
     ? allClaims.filter((c) => (claim.conflictsWith ?? []).includes(c.id))
     : []
@@ -257,6 +401,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 onReview={onReview}
                 onEdit={onEdit}
                 canReview={canReview}
+                error={error}
               />
             </div>
           </>
