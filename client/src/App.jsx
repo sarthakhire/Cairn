@@ -301,6 +301,11 @@ function App() {
               nextVersion={nextVersion}
               onApprove={handleApprove}
               onRevoke={handleRevoke}
+              issue={issue}
+              warnings={role === 'lead' ? countWarnings(claims) : null}
+              claims={claims}
+              busy={busy}
+              onSelectClaim={setSelectedId}
             />
 
             <AcknowledgeBar
