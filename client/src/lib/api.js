@@ -8,13 +8,13 @@ const BASE = (import.meta.env?.VITE_API_URL || 'http://localhost:5000').replace(
 const KEY = 'handovertrail.session'
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, body = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body // the parsed error response, for example { error, blockers }
   }
 }
-
 function readSession() {
   try {
     const raw = sessionStorage.getItem(KEY)
@@ -72,7 +72,7 @@ async function request(method, path, { body, form } = {}) {
       writeSession(null)
       if (unauthorizedHandler) unauthorizedHandler()
     }
-    throw new ApiError(data?.error || `Request failed (${response.status})`, response.status)
+    throw new ApiError(data?.error || `Request failed (${response.status})`, response.status, data)
   }
   return data
 }
