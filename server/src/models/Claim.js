@@ -30,6 +30,33 @@ const evidenceSchema = new Schema(
   { _id: false }
 );
 
+// One entry per review action, oldest first. Reviewer-only: never sent to incoming roles.
+const historySchema = new Schema(
+  {
+    at: { type: Date, required: true },
+    byId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    byName: { type: String, default: null }, // name at the time, so history survives a rename
+    action: { type: String, enum: ["accept", "edit", "reject", "reopen"], required: true },
+    fromState: { type: String, enum: REVIEW_STATES, required: true },
+    toState: { type: String, enum: REVIEW_STATES, required: true },
+    fromStatement: { type: String, required: true },
+    toStatement: { type: String, required: true },
+    reason: { type: String, default: null },
+  },
+  { _id: false }
+);
+
+// Why a claim whose quote does not match its source was accepted anyway.
+const overrideSchema = new Schema(
+  {
+    reason: { type: String, required: true },
+    byId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    byName: { type: String, default: null },
+    at: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const claimSchema = new Schema(
   {
     claimId: { type: String, required: true, unique: true }, // "c_001", sent to the client as "id"
@@ -44,6 +71,10 @@ const claimSchema = new Schema(
       state: { type: String, enum: REVIEW_STATES, default: "draft" },
       reviewerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
       at: { type: Date, default: null },
+      reason: { type: String, default: null }, // why it was rejected (only while rejected)
+      originalStatement: { type: String, default: null }, // wording before the first edit
+      override: { type: overrideSchema, default: null },
+      history: { type: [historySchema], default: [] },
     },
     nextAction: { type: String, default: null },
     conflictsWith: { type: [String], default: [] }, // claimIds

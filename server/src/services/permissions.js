@@ -23,6 +23,21 @@ function visibleLevels(role) {
   return SENSITIVITY.filter((l) => canSee(role, l) || l === "restricted");
 }
 
+// What incoming roles may know about a review: state, who, when, and whether a human
+// edited the claim. The reason, override, history and original wording are reviewer-only:
+// a lead may edit a claim precisely to remove sensitive detail. Built field by field,
+// so a review field added later is not shared by accident.
+function publicReview(r) {
+  const review = r || {};
+  return {
+    state: review.state,
+    by: review.by === undefined ? null : review.by,
+    at: review.at === undefined ? null : review.at,
+    // Snapshots saved before the review workflow have no `edited` flag.
+    edited: review.edited === undefined ? review.state === "edited" : !!review.edited,
+  };
+}
+
 // Built field by field, never by spreading the real claim, so nothing
 // from the original can slip through when a field is added later.
 function maskRestricted(c) {
@@ -33,19 +48,20 @@ function maskRestricted(c) {
     status: c.status,
     evidence: [],
     visibility: "restricted",
-    review: c.review,
+    review: publicReview(c.review),
     nextAction: null,
     conflictsWith: [],
     inference: false,
   };
 }
 
-// `closest` is source text around the quote. The reviewer approved the quote,
-// not the text around it, so only the reviewer gets it. Built field by field,
-// so a field added to evidence or match later is not shared by accident.
-function withoutClosest(claim) {
+// A claim an incoming role may see in full. `closest` is source text around the quote:
+// the reviewer approved the quote, not the text around it, so only the reviewer gets it.
+// Evidence and review are rebuilt field by field for the same reason as above.
+function forIncoming(claim) {
   return {
     ...claim,
+    review: publicReview(claim.review),
     evidence: (claim.evidence || []).map((e) => ({
       quote: e.quote,
       source: e.source,
@@ -62,7 +78,7 @@ function withoutClosest(claim) {
 // or null when the claim must not appear at all.
 function viewClaim(role, claim) {
   if (!canReview(role) && !isApproved(claim.review && claim.review.state)) return null;
-  if (canSee(role, claim.visibility)) return canReview(role) ? claim : withoutClosest(claim);
+  if (canSee(role, claim.visibility)) return canReview(role) ? claim : forIncoming(claim);
   if (claim.visibility === "restricted") return maskRestricted(claim);
   return null; // lead_only for a developer: no placeholder, no count
 }

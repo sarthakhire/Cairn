@@ -54,9 +54,22 @@ Claim.find = (filter) =>
 Claim.updateOne = async (filter, update) => {
   claimUpdates.push(structuredClone(update));
   const c = live.find((x) => x.claimId === filter.claimId);
-  const set = update.$set;
-  if (set.statement) c.statement = set.statement;
-  c.review = { state: set["review.state"], reviewerId: { name: "Lead" }, at: set["review.at"] };
+  const walk = (path) => {
+    const keys = path.split(".");
+    let o = c;
+    for (const k of keys.slice(0, -1)) o = o[k] = o[k] || {};
+    return [o, keys.at(-1)];
+  };
+  for (const [path, value] of Object.entries(update.$set || {})) {
+    const [o, k] = walk(path);
+    o[k] = structuredClone(value);
+  }
+  for (const [path, value] of Object.entries(update.$push || {})) {
+    const [o, k] = walk(path);
+    (o[k] = o[k] || []).push(structuredClone(value));
+  }
+  // The real load() fills in the reviewer's name; here any id becomes the demo lead.
+  if (typeof c.review.reviewerId === "string") c.review.reviewerId = { name: "Lead" };
   return { matchedCount: 1 };
 };
 AuditLog.create = async (d) => { audits.push(structuredClone(d)); };
@@ -185,11 +198,11 @@ test("review: accept and reject set the state and write an audit row", async () 
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body.review.state, "accepted");
   assert.equal(accepted.body.review.by, "Lead");
-  assert.deepEqual(Object.keys(claimUpdates[0].$set).sort(), ["review.at", "review.reviewerId", "review.state"]);
+  assert.deepEqual(Object.keys(claimUpdates[0].$set).sort(), ["review.at", "review.override", "review.reason", "review.reviewerId", "review.state"]);
   assert.equal(audits.at(-1).action, "Accepted");
   assert.equal(audits.at(-1).claimId, "c_004");
 
-  const rejected = await call("patch", "/api/claims/c_001", "lead", { action: "reject" });
+  const rejected = await call("patch", "/api/claims/c_001", "lead", { action: "reject", reason: "Not what the notes say at all" });
   assert.equal(rejected.body.review.state, "rejected");
   assert.equal(audits.at(-1).action, "Rejected");
 });
@@ -368,4 +381,111 @@ test("match.closest and match.reason of hidden claims never reach an incoming ro
     assert.ok(!text.includes(s), "incoming lead saw " + s);
   }
   assert.deepEqual(lead.body.find((c) => c.id === "c_003").evidence, []);
+});
+// ---- Review workflow (Round 3) ----
+
+test("reject needs a reason; reject then reopen keeps both in the history, in order", async () => {
+  reset();
+  assert.equal((await call("patch", "/api/claims/c_004", "lead", { action: "reject" })).status, 400);
+  assert.equal((await call("patch", "/api/claims/c_004", "lead", { action: "reject", reason: "too short" })).status, 400);
+  assert.equal(claimUpdates.length, 0);
+  assert.equal(audits.length, 0);
+
+  const rejected = await call("patch", "/api/claims/c_004", "lead", { action: "reject", reason: "Not what the notes say at all" });
+  assert.equal(rejected.status, 200);
+  assert.equal(rejected.body.review.state, "rejected");
+  assert.equal(rejected.body.review.reason, "Not what the notes say at all");
+
+  const reopened = await call("patch", "/api/claims/c_004", "lead", { action: "reopen", reason: "Checked again" });
+  assert.equal(reopened.status, 200);
+  assert.equal(reopened.body.review.state, "draft");
+  assert.equal(reopened.body.review.by, null);
+  assert.equal(reopened.body.review.reason, null);
+  assert.deepEqual(
+    reopened.body.review.history.map((h) => [h.action, h.fromState, h.toState]),
+    [["reject", "draft", "rejected"], ["reopen", "rejected", "draft"]]
+  );
+  assert.equal(reopened.body.review.history[0].reason, "Not what the notes say at all");
+  assert.deepEqual(audits.map((a) => a.action), ["Rejected", "Reopened"]);
+  assert.ok(audits[0].detail.includes("Reason: Not what the notes"));
+});
+
+test("repeating an action on the same state changes nothing", async () => {
+  reset();
+  await call("patch", "/api/claims/c_004", "lead", { action: "accept" });
+  const writes = claimUpdates.length;
+  const auditRows = audits.length;
+  const again = await call("patch", "/api/claims/c_004", "lead", { action: "accept" });
+  assert.equal(again.status, 200);
+  assert.equal(again.body.review.history.length, 1);
+  assert.equal(claimUpdates.length, writes);
+  assert.equal(audits.length, auditRows);
+});
+
+test("the first edit keeps the original wording, later edits do not replace it", async () => {
+  reset();
+  const first = await call("patch", "/api/claims/c_004", "lead", { action: "edit", statement: "First rewrite of the claim" });
+  assert.equal(first.body.review.originalStatement, SECRETS.draft);
+  assert.equal(first.body.review.edited, true);
+  const second = await call("patch", "/api/claims/c_004", "lead", { action: "edit", statement: "Second rewrite of the claim" });
+  assert.equal(second.body.review.originalStatement, SECRETS.draft);
+  assert.equal(second.body.review.history.length, 2);
+  assert.equal(second.body.review.history[1].fromStatement, "First rewrite of the claim");
+  const repeat = await call("patch", "/api/claims/c_004", "lead", { action: "edit", statement: "Second rewrite of the claim" });
+  assert.equal(repeat.status, 200);
+  assert.equal(repeat.body.review.history.length, 2); // same edit again is a no-op
+});
+
+test("a mismatch claim needs an override to be accepted, and then approval is no longer blocked by it", async () => {
+  reset();
+  settle();
+  live[0].evidence[0].quoteFound = false; // c_001: its quote does not match the source
+  live[0].review = { state: "draft", reviewerId: null, at: null };
+
+  const none = await call("patch", "/api/claims/c_001", "lead", { action: "accept" });
+  assert.equal(none.status, 400);
+  assert.match(none.body.error, /does not match/);
+  assert.equal((await call("patch", "/api/claims/c_001", "lead", { action: "accept", override: "too short" })).status, 400);
+  assert.equal(claimUpdates.length, 0);
+  assert.equal((await call("post", "/api/approval", "lead")).status, 409); // still a draft, still blocked
+
+  const ok = await call("patch", "/api/claims/c_001", "lead", { action: "accept", override: "The quote is right, the support check was too strict." });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.review.state, "accepted");
+  assert.equal(ok.body.review.override.reason, "The quote is right, the support check was too strict.");
+  assert.equal(ok.body.review.override.by, "Name lead");
+  assert.equal(ok.body.verification, "mismatch"); // the evidence check itself is not changed by an override
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
+});
+
+test("reason, override, history and original wording never reach an incoming role", async () => {
+  reset();
+  settle();
+  const at = new Date("2026-03-02T18:40:00Z");
+  const reviewed = (state) => ({
+    state, reviewerId: { name: "Lead" }, at,
+    originalStatement: "ORIG_X text", reason: "REASON_X text",
+    override: { reason: "OVERRIDE_X text", byName: "Lead", at },
+    history: [{ at, byName: "Lead", action: "edit", fromState: "draft", toState: state,
+      fromStatement: "HISTORY_X from", toStatement: "HISTORY_X to", reason: "HISTORY_X reason" }],
+  });
+  live[0].review = reviewed("edited"); // c_001, team
+  live[2].review = reviewed("accepted"); // c_003, restricted (masked for incoming roles)
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
+
+  const SENTINELS = ["ORIG_X", "REASON_X", "OVERRIDE_X", "HISTORY_X"];
+  for (const role of INCOMING) {
+    const seen = JSON.stringify([
+      (await call("get", "/api/claims", role)).body,
+      (await call("get", "/api/claims/c_001", role)).body,
+      (await call("get", "/api/claims/c_003", role)).body,
+      (await call("get", "/api/approval", role)).body,
+    ]);
+    for (const s of SENTINELS) assert.ok(!seen.includes(s), role + " saw " + s);
+  }
+  const one = (await call("get", "/api/claims/c_001", "incoming_developer")).body;
+  assert.deepEqual(one.review, { state: "edited", by: "Lead", at: "2026-03-02T18:40:00", edited: true });
+
+  const lead = JSON.stringify((await call("get", "/api/claims/c_001", "lead")).body);
+  for (const s of SENTINELS) assert.ok(lead.includes(s), "the reviewer should see " + s);
 });

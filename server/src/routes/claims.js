@@ -9,6 +9,7 @@ const { currentApproval } = require("../services/handover");
 const { short } = require("../services/versions");
 const { planResolution } = require("../services/resolution");
 const { AnswerError, answerGap } = require("../services/answers");
+const { planReview } = require("../services/reviewActions");
 const AuditLog = require("../models/AuditLog");
 const audit = require("../services/audit");
 
@@ -52,13 +53,13 @@ router.get("/:id", async (req, res) => {
   res.json(claim);
 });
 
-const patchSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("accept") }),
-  z.object({ action: z.literal("reject") }),
-  z.object({ action: z.literal("edit"), statement: z.string().trim().min(1).max(1000) }),
-]);
-const STATE = { accept: "accepted", reject: "rejected", edit: "edited" };
-const LABEL = { accept: "Accepted", reject: "Rejected", edit: "Edited" };
+// Only the shape is checked here. The rules (lengths, overrides, no-ops) live in services/reviewActions.js.
+const patchSchema = z.object({
+  action: z.enum(["accept", "reject", "edit", "reopen"]),
+  statement: z.string().optional(),
+  reason: z.string().optional(),
+  override: z.string().optional(),
+});
 
 // Review one claim. Only the statement and the review fields can change here:
 // evidence and status are never touched, so an edit can never make a claim "verified".
@@ -68,36 +69,35 @@ router.patch("/:id", requireRole("lead"), async (req, res) => {
 
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Send { "action": "accept" | "reject" | "edit" }, and a statement for edit' });
+    return res.status(400).json({
+      error: 'Send { "action": "accept" | "reject" | "edit" | "reopen" }, with a statement for edit and a reason for reject',
+    });
   }
 
   const [before] = await load({ claimId: id });
   if (!before) return res.status(404).json({ error: "Not found" });
 
-  const { action } = parsed.data;
-  if (action === "edit" && parsed.data.statement === before.statement) {
-    return res.status(400).json({ error: "The statement is unchanged" });
-  }
+  const plan = planReview({ claim: before, body: parsed.data, user: req.user });
+  if (plan.error) return res.status(plan.status).json({ error: plan.error });
+  if (plan.noop) return res.json(serializeClaim(before));
 
-  const set = {
-    "review.state": STATE[action],
-    "review.reviewerId": req.user.id,
-    "review.at": new Date(),
-  };
-  if (action === "edit") set.statement = parsed.data.statement;
-  await Claim.updateOne({ claimId: id }, { $set: set });
+  // The state in the filter means two quick clicks cannot both apply: the second finds it already changed.
+  const filter = { claimId: id };
+  if (before.review && before.review.state) filter["review.state"] = plan.from;
+  const result = await Claim.updateOne(filter, { $set: plan.set, $push: plan.push });
+  if (result && result.matchedCount === 0) {
+    const [current] = await load({ claimId: id });
+    return res.json(serializeClaim(current));
+  }
 
   const [after] = await load({ claimId: id });
   await audit.record({
     actorId: req.user.id,
-    action: LABEL[action],
+    action: plan.audit.action,
     claimId: id,
-    detail:
-      action === "edit"
-        ? "From: " + short(before.statement) + " To: " + short(parsed.data.statement)
-        : short(before.statement),
-    before: { statement: before.statement, state: before.review && before.review.state },
-    after: { statement: after.statement, state: after.review.state },
+    detail: plan.audit.detail,
+    before: plan.audit.before,
+    after: plan.audit.after,
   });
   res.json(serializeClaim(after));
 });

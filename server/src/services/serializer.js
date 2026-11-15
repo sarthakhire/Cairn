@@ -3,7 +3,8 @@ const { RESTRICTED_PLACEHOLDER } = require("../constants");
 // Turns a stored claim into the shape in docs/api-contract.md.
 // Expects evidence.chunkId populated, chunk.sourceId populated and
 // review.reviewerId populated. Works on Mongoose documents and plain objects.
-// No role filtering or redaction here: that lives in permissions.js.
+// This is the reviewer's full view. No role filtering or redaction here: that lives
+// in permissions.js, which is what strips the reviewer-only review fields.
 
 const isoDate = (d) => new Date(d).toISOString().slice(0, 10); // 2026-02-03
 const isoSeconds = (d) => new Date(d).toISOString().slice(0, 19); // 2026-03-02T18:40:00
@@ -65,8 +66,34 @@ function serializeEvidence(e) {
   };
 }
 
+// Claims saved before the review workflow have none of the new review fields.
+function serializeReview(review) {
+  const r = review || {};
+  const o = r.override;
+  return {
+    state: r.state,
+    by: r.reviewerId && r.reviewerId.name ? r.reviewerId.name : null,
+    at: r.at ? isoSeconds(r.at) : null,
+    edited: !!r.originalStatement || r.state === "edited",
+    originalStatement: r.originalStatement == null ? null : r.originalStatement,
+    reason: r.reason == null ? null : r.reason,
+    override: o
+      ? { reason: o.reason, by: o.byName || null, at: o.at ? isoSeconds(o.at) : null }
+      : null,
+    history: (r.history || []).map((h) => ({
+      at: isoSeconds(h.at),
+      by: h.byName || null,
+      action: h.action,
+      fromState: h.fromState,
+      toState: h.toState,
+      fromStatement: h.fromStatement,
+      toStatement: h.toStatement,
+      reason: h.reason == null ? null : h.reason,
+    })),
+  };
+}
+
 function serializeClaim(c) {
-  const review = c.review || {};
   return {
     id: c.claimId,
     type: c.type,
@@ -75,11 +102,7 @@ function serializeClaim(c) {
     verification: claimVerification(c.evidence),
     evidence: (c.evidence || []).map(serializeEvidence),
     visibility: c.visibility,
-    review: {
-      state: review.state,
-      by: review.reviewerId && review.reviewerId.name ? review.reviewerId.name : null,
-      at: review.at ? isoSeconds(review.at) : null,
-    },
+    review: serializeReview(c.review),
     nextAction: c.nextAction || null,
     conflictsWith: Array.from(c.conflictsWith || []),
     inference: !!c.inference,
