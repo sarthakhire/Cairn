@@ -19,6 +19,7 @@ import { canReview } from '@/lib/roles'
 import { findGaps } from '@/lib/gaps'
 import { describeCounts } from '@/lib/redact'
 import { countWarnings } from '@/lib/warnings'
+import ReviewQueue from '@/components/ReviewQueue'
 import { api } from '@/lib/api'
 
 const NO_ISSUE = { message: '', blockers: [] }
