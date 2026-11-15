@@ -19,6 +19,7 @@ import { canReview } from '@/lib/roles'
 import { findGaps } from '@/lib/gaps'
 import { describeCounts } from '@/lib/redact'
 import { countWarnings } from '@/lib/warnings'
+import ReviewQueue from '@/components/ReviewQueue'
 import { api } from '@/lib/api'
 
 const NO_ISSUE = { message: '', blockers: [] }
@@ -118,6 +119,8 @@ function App() {
   const locked = role !== 'lead' && !approval
   const roleClaims = locked ? [] : claims
   const gaps = role === 'lead' ? findGaps(claims) : []
+  const draftCount = claims.filter((claim) => claim.review?.state === 'draft').length
+  const [queueTarget, setQueueTarget] = useState(null)
 
   const views = [
     { value: 'claims', label: 'Claims' },
@@ -125,6 +128,9 @@ function App() {
     { value: 'plan', label: 'First-week plan' },
     ...(role === 'lead'
       ? [
+          { value: 'queue',
+            label: draftCount > 0 ? `Review queue (${draftCount})` : 'Review queue',
+          },
           { value: 'conflicts', label: 'Conflicts' },
           {
             value: 'gaps',
@@ -146,7 +152,11 @@ function App() {
   )
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
-
+    // Opens the evidence drawer from the queue, straight into a review form.
+  function openFromQueue(id, mode = 'idle') {
+    setQueueTarget({ id, mode })
+    setSelectedId(id)
+  }
   function handleLogin(nextUser) {
     setLoading(true)
     setNotice('')
@@ -161,6 +171,7 @@ function App() {
 
   function handleLogout() {
     api.logout()
+    setQueueTarget(null)
     setUser(null)
     clearData()
     setSelectedId(null)
@@ -370,6 +381,14 @@ function App() {
                     </div>
                   </>
                 )}
+                {activeView === 'queue' && (
+                  <ReviewQueue
+                    claims={roleClaims}
+                    busy={busy}
+                    onOpen={openFromQueue}
+                    onReview={handleReview}
+                  />
+                )}
 
                 {activeView === 'timeline' && (
                   <Timeline claims={roleClaims} onSelect={setSelectedId} />
@@ -422,11 +441,15 @@ function App() {
       <EvidenceDrawer
         claim={selectedClaim}
         allClaims={roleClaims}
-        onClose={() => setSelectedId(null)}
+        onClose={() => {
+          setSelectedId(null)
+          setQueueTarget(null)
+        }}
         onReview={handleReview}
         onEdit={handleEdit}
         canReview={canReview(role)}
         error={notice}
+        startMode={queueTarget && queueTarget.id === selectedId ? queueTarget.mode : 'idle'}
       />
     </div>
   )

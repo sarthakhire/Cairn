@@ -112,8 +112,12 @@ function ReasonField({ id, label, value, onChange }) {
   )
 }
 
-function ReviewSection({ claim, onReview, onEdit, canReview, error }) {
-  const [mode, setMode] = useState('idle')
+function ReviewSection({ claim, onReview, onEdit, canReview, error, startMode = 'idle' }) {
+  const [mode, setMode] = useState(() => {
+    if (startMode === 'edit' && claim.visibility === 'restricted') return 'idle'
+    if (startMode === 'accept' && claim.verification !== 'mismatch') return 'idle'
+    return startMode
+  })
   const [draft, setDraft] = useState(claim.statement)
   const [reason, setReason] = useState('')
   const [pending, setPending] = useState(false)
@@ -402,6 +406,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 onEdit={onEdit}
                 canReview={canReview}
                 error={error}
+                startMode={startMode}
               />
             </div>
           </>
