@@ -8,12 +8,92 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import StatusBadge from '@/components/StatusBadge'
+import VerificationBadge from '@/components/VerificationBadge'
+import { diffWords, stripEdgeEllipsis } from '@/lib/diff'
+
+// Changed words are underlined as well as coloured, so colour is never the only cue.
+function Words({ words }) {
+  return (
+    <>
+      {words.map((word, index) => (
+        <span key={index}>
+          {word.changed ? (
+            <mark className="rounded bg-amber-500/25 px-0.5 text-amber-300 underline decoration-amber-400 underline-offset-2">
+              {word.text}
+            </mark>
+          ) : (
+            word.text
+          )}{' '}
+        </span>
+      ))}
+    </>
+  )
+}
+
+function EvidenceItem({ item, canReview }) {
+  const match = item.match
+  const closest = match?.closest ?? null
+  const diff = closest ? diffWords(stripEdgeEllipsis(item.quote), closest) : null
+  const score = typeof match?.score === 'number' ? `${Math.round(match.score * 100)}%` : null
+
+  return (
+    <div className="space-y-3 rounded-md border-l-2 border-primary bg-muted p-3">
+      {match && (
+        <div className="flex flex-wrap items-center gap-2">
+          <VerificationBadge verification={match.result} />
+          {score && (
+            <span className="text-xs text-muted-foreground">Similarity {score}</span>
+          )}
+          {match.reason && (
+            <span className="text-xs text-muted-foreground">{match.reason}</span>
+          )}
+        </div>
+      )}
+
+      {diff ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Claimed quote
+            </p>
+            <p className="font-serif text-base italic leading-snug">
+              <Words words={diff.left} />
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Closest passage in the source
+            </p>
+            <p className="font-serif text-base leading-snug">
+              <Words words={diff.right} />
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="font-serif text-lg italic">{item.quote}</p>
+      )}
+
+      {match && !closest && (
+        <p className="text-xs text-muted-foreground">
+          {canReview
+            ? 'No close passage was found in the cited chunk.'
+            : 'The closest source passage is shown to the reviewer only.'}
+        </p>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        {item.source}, chunk {item.chunk}, {item.date}
+      </p>
+    </div>
+  )
+}
 
 function ReviewSection({ claim, onReview, onEdit, canReview }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(claim.statement)
   const canEdit = claim.visibility !== 'restricted'
-    if (!canReview) {
+
+  if (!canReview) {
     return (
       <section className="space-y-1">
         <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -28,7 +108,7 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
     )
   }
 
-    function save() {
+  function save() {
     const text = draft.trim()
     if (!text) return
     if (text === claim.statement) {
@@ -98,17 +178,23 @@ function ReviewSection({ claim, onReview, onEdit, canReview }) {
 
 function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview }) {
   const conflicts = claim
-    ? allClaims.filter((c) => claim.conflictsWith.includes(c.id))
+    ? allClaims.filter((c) => (claim.conflictsWith ?? []).includes(c.id))
     : []
 
   return (
     <Sheet open={claim !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
+      <SheetContent className="overflow-y-auto sm:max-w-xl">
         {claim && (
           <>
             <SheetHeader>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={claim.status} />
+                <VerificationBadge verification={claim.verification} />
+                {claim.review?.edited && (
+                  <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-400">
+                    Human edited
+                  </span>
+                )}
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
                   {claim.type.replace('_', ' ')}
                 </span>
@@ -130,15 +216,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                   </p>
                 ) : (
                   claim.evidence.map((item, index) => (
-                    <blockquote
-                      key={index}
-                      className="space-y-2 rounded-md border-l-2 border-primary bg-muted p-3"
-                    >
-                      <p className="font-serif text-lg italic">{item.quote}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.source}, chunk {item.chunk}, {item.date}
-                      </p>
-                    </blockquote>
+                    <EvidenceItem key={index} item={item} canReview={canReview} />
                   ))
                 )}
               </section>
