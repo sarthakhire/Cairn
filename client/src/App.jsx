@@ -376,6 +376,14 @@ function App() {
                     </div>
                   </>
                 )}
+                {activeView === 'queue' && (
+                  <ReviewQueue
+                    claims={roleClaims}
+                    busy={busy}
+                    onOpen={openFromQueue}
+                    onReview={handleReview}
+                  />
+                )}
 
                 {activeView === 'timeline' && (
                   <Timeline claims={roleClaims} onSelect={setSelectedId} />
