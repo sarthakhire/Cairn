@@ -117,7 +117,7 @@ function viewFor(role, list) {
   for (const c of list) {
     if (!APPROVED.includes(c.review.state)) continue
     if (RANK[c.visibility] <= MAX_LEVEL[role]) {
-      seen.push({ ...c, review: publicReview(c.review) })
+      seen.push({ ...hideClosest(c), review: publicReview(c.review) })
     } else if (c.visibility === 'restricted') {
       seen.push(masked(c))
     }
