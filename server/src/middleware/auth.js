@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { ROLES } = require("../constants");
+const { recordDenied } = require("../services/audit");
 
 const ALGORITHM = "HS256";
 const EXPIRES_IN = "8h";
@@ -39,9 +40,11 @@ function auth(req, res, next) {
 }
 
 // Use after auth, e.g. router.patch("/:id/review", requireRole("lead"), ...)
-const requireRole = (...roles) => (req, res, next) =>
-  roles.includes(req.user && req.user.role)
-    ? next()
-    : res.status(403).json({ error: "Not allowed" });
+const requireRole = (...roles) => (req, res, next) => {
+  if (roles.includes(req.user && req.user.role)) return next();
+  // Written in the background, so the answer below is the same with or without it.
+  recordDenied({ actorId: req.user && req.user.id, role: req.user && req.user.role, method: req.method, url: req.originalUrl });
+  return res.status(403).json({ error: "Not allowed" });
+};
 
 module.exports = { auth, requireRole, signToken };

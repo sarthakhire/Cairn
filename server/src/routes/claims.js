@@ -50,11 +50,29 @@ router.get("/resolutions", requireRole("lead"), async (req, res) => {
   );
 });
 
+function noteHiddenProbe(req, id) {
+  if (canReview(req.user.role)) return;
+  load({ claimId: id })
+    .then((rows) => {
+      if (rows.length === 0) return;
+      audit.recordDenied({
+        actorId: req.user.id, role: req.user.role, method: req.method, url: req.originalUrl,
+        action: "Hidden claim requested", claimId: id,
+        detail: req.user.role + " requested " + id + ", which they cannot see",
+      });
+    })
+    .catch(() => {});
+}
+
 router.get("/:id", async (req, res) => {
   if (!ID.test(req.params.id)) return res.status(404).json({ error: "Not found" });
   const claim = (await visibleClaims(req.user.role)).find((c) => c.id === req.params.id);
   // Hidden and missing look identical, so the id of a hidden claim reveals nothing.
-  if (!claim) return res.status(404).json({ error: "Not found" });
+  if (!claim) {
+    res.status(404).json({ error: "Not found" });
+    noteHiddenProbe(req, req.params.id);
+    return;
+  }
   res.json(claim);
 });
 

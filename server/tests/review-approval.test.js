@@ -237,7 +237,7 @@ test("review: bad input and wrong roles are rejected before anything is written"
   assert.equal((await call("patch", "/api/claims/c_999", "lead", { action: "accept" })).status, 404);
   assert.equal((await call("patch", "/api/claims/not-an-id", "lead", { action: "accept" })).status, 404);
   assert.equal(claimUpdates.length, 0);
-  assert.equal(audits.length, 0);
+  assert.equal(audits.filter((a) => a.outcome !== "denied").length, 0);
 });
 
 test("acknowledge: only incoming roles, only after approval, first time is kept", async () => {
@@ -389,7 +389,7 @@ test("reject needs a reason; reject then reopen keeps both in the history, in or
   assert.equal((await call("patch", "/api/claims/c_004", "lead", { action: "reject" })).status, 400);
   assert.equal((await call("patch", "/api/claims/c_004", "lead", { action: "reject", reason: "too short" })).status, 400);
   assert.equal(claimUpdates.length, 0);
-  assert.equal(audits.length, 0);
+  assert.equal(audits.filter((a) => a.outcome !== "denied").length, 0);
 
   const rejected = await call("patch", "/api/claims/c_004", "lead", { action: "reject", reason: "Not what the notes say at all" });
   assert.equal(rejected.status, 200);

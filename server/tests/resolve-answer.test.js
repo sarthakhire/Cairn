@@ -128,7 +128,7 @@ test("resolve: wrong roles and bad input are refused before anything is written"
   assert.equal((await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_006" })).status, 409);
   assert.equal((await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_999" })).status, 409);
   assert.equal(bulkOps.length, 0);
-  assert.equal(audits.length, 0);
+  assert.equal(audits.filter((a) => a.outcome !== "denied").length, 0);
 });
 
 test("answer: becomes a new draft claim with redacted text and an informal answer source", async () => {
@@ -186,5 +186,5 @@ test("answer: only open, non-restricted questions can be answered, and only by t
   }
   assert.equal(live.length, 6);
   assert.equal(chunks.length, 0);
-  assert.equal(audits.length, 0);
+  assert.equal(audits.filter((a) => a.outcome !== "denied").length, 0);
 });

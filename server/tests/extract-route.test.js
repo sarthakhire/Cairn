@@ -10,6 +10,8 @@ const { LlmConfigError, LlmRateLimitError } = require("../src/services/llm");
 let behaviour = async () => ({ claimsCreated: 3 });
 pipeline.runExtraction = (args) => behaviour(args);
 
+const AuditLog = require("../src/models/AuditLog");
+AuditLog.create = async () => {}; // refused requests are written to the audit log
 const app = require("../src/app");
 const { signToken } = require("../src/middleware/auth");
 

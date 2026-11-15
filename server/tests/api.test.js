@@ -140,4 +140,4 @@ test("login rejects malformed bodies, including NoSQL operator objects", async (
     assert.equal(res.status, 400);
   }
   assert.equal(queried, false);
-});
+});
