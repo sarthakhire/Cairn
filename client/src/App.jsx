@@ -200,12 +200,15 @@ function App() {
     return act(() => api.acknowledge())
   }
 
-  function handleReview(id, state) {
-    return act(() => api.review(id, state === 'accepted' ? 'accept' : 'reject'))
+  // The drawer sends 'accept' or 'reject' with an optional reason or override.
+  // The older 'accepted' and 'rejected' spellings are still understood.
+  function handleReview(id, action, extra) {
+    const name = action === 'accepted' ? 'accept' : action === 'rejected' ? 'reject' : action
+    return act(() => api.review(id, name, extra))
   }
 
-  function handleEdit(id, statement) {
-    return act(() => api.review(id, 'edit', statement))
+  function handleEdit(id, statement, extra) {
+    return act(() => api.review(id, 'edit', { statement, ...extra }))
   }
 
   function handleResolve(keepId, dropId) {
@@ -395,6 +398,7 @@ function App() {
         onReview={handleReview}
         onEdit={handleEdit}
         canReview={canReview(role)}
+        error={notice}
       />
     </div>
   )
