@@ -18,6 +18,7 @@ import UserBar from '@/components/UserBar'
 import { canReview } from '@/lib/roles'
 import { findGaps } from '@/lib/gaps'
 import { describeCounts } from '@/lib/redact'
+import { countWarnings } from '@/lib/warnings'
 import { api } from '@/lib/api'
 
 const EMPTY_APPROVAL = {
