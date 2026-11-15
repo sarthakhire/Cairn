@@ -10,8 +10,10 @@ const { short } = require("../services/versions");
 const { planResolution } = require("../services/resolution");
 const { AnswerError, answerGap } = require("../services/answers");
 const { planReview } = require("../services/reviewActions");
+const { parseClaimQuery, applyClaimFilters } = require("../services/claimFilters")
 const AuditLog = require("../models/AuditLog");
 const audit = require("../services/audit");
+
 
 const router = Router();
 const ID = /^c_\d+$/;
@@ -27,7 +29,10 @@ async function visibleClaims(role) {
 }
 
 router.get("/", async (req, res) => {
-  res.json(await visibleClaims(req.user.role));
+  const parsed = parseClaimQuery(req.query);
+  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+  // Gate first, filter second: a filter only ever sees what this role may see.
+  res.json(applyClaimFilters(await visibleClaims(req.user.role), parsed.filters));
 });
 
 // The log of resolved conflicts, newest first (reviewer only). Declared before "/:id".
