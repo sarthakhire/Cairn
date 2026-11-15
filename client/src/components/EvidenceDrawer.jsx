@@ -406,6 +406,7 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 onEdit={onEdit}
                 canReview={canReview}
                 error={error}
+                startMode={startMode}
               />
             </div>
           </>
