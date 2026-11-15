@@ -127,8 +127,8 @@ function viewFor(role, list) {
 }
 
 export function createMockApi(ApiError) {
-  const fail = (message, status) => {
-    throw new ApiError(message, status)
+  const fail = (message, status, body = null) => {
+    throw new ApiError(message, status, body)
   }
 
   const claims = clone(mockClaims)
@@ -214,7 +214,26 @@ export function createMockApi(ApiError) {
       versions: isLead ? clone(versions) : [],
     }
   }
-
+    // The approval gate: the same two hard blocks as the server.
+  function approvalBlockers() {
+    const out = []
+    for (const c of claims) {
+      if (c.review.state === 'draft') {
+        out.push({ id: c.id, kind: 'draft', message: 'Still a draft' })
+      } else if (
+        APPROVED.includes(c.review.state) &&
+        c.verification === 'mismatch' &&
+        !c.review.override
+      ) {
+        out.push({
+          id: c.id,
+          kind: 'mismatch',
+          message: 'Accepted but the quote does not match the source',
+        })
+      }
+    }
+    return out
+  }
   console.info('[mock api] Running on mock data. Nothing here reaches the server.')
 
   return {
@@ -375,6 +394,11 @@ export function createMockApi(ApiError) {
       lead()
       if (approval && countChanges(approval.snapshot, claims) === 0) {
         fail(`Version ${approval.version} is already approved and nothing changed.`, 409)
+      }
+      const blockers = approvalBlockers()
+      if (blockers.length > 0) {
+        const message = `${blockers.length} ${blockers.length === 1 ? 'claim blocks' : 'claims block'} approval`
+        fail(message, 409, { error: message, blockers })
       }
       const number = versions.length + 1
       const at = stamp()
