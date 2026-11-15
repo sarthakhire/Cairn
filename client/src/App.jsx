@@ -448,6 +448,7 @@ function App() {
         onEdit={handleEdit}
         canReview={canReview(role)}
         error={notice}
+        startMode={queueTarget && queueTarget.id === selectedId ? queueTarget.mode : 'idle'}
       />
     </div>
   )
