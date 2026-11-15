@@ -440,7 +440,10 @@ function App() {
       <EvidenceDrawer
         claim={selectedClaim}
         allClaims={roleClaims}
-        onClose={() => setSelectedId(null)}
+        onClose={() => {
+          setSelectedId(null)
+          setQueueTarget(null)
+        }}
         onReview={handleReview}
         onEdit={handleEdit}
         canReview={canReview(role)}
