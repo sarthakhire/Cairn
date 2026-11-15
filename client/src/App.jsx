@@ -171,6 +171,7 @@ function App() {
 
   function handleLogout() {
     api.logout()
+    setQueueTarget(null)
     setUser(null)
     clearData()
     setSelectedId(null)
