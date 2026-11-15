@@ -152,7 +152,11 @@ function App() {
   )
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
-
+    // Opens the evidence drawer from the queue, straight into a review form.
+  function openFromQueue(id, mode = 'idle') {
+    setQueueTarget({ id, mode })
+    setSelectedId(id)
+  }
   function handleLogin(nextUser) {
     setLoading(true)
     setNotice('')
