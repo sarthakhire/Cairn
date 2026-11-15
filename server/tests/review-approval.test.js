@@ -341,3 +341,31 @@ test("after a revoke the same content can be approved again as a new version", a
   assert.equal(again.status, 201);
   assert.equal(again.body.approval.version, 2);
 });
+test("match.closest and match.reason of hidden claims never reach an incoming role", async () => {
+  reset();
+  settle();
+  const hidden = (reason, closest) => ({ result: "partial", score: 0.9, method: "fuzzy", reason, closest });
+  live[1].evidence[0].match = hidden("REASON_LEADONLY_X", "CLOSEST_LEADONLY_X"); // c_002, lead-only
+  live[2].evidence[0].match = hidden("REASON_RESTRICTED_X", "CLOSEST_RESTRICTED_X"); // c_003, restricted
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
+
+  // The developer sees neither the lead-only claim nor anything of the restricted one.
+  const dev = JSON.stringify([
+    (await call("get", "/api/claims", "incoming_developer")).body,
+    (await call("get", "/api/claims/c_002", "incoming_developer")).body,
+    (await call("get", "/api/claims/c_003", "incoming_developer")).body,
+    (await call("get", "/api/approval", "incoming_developer")).body,
+  ]);
+  for (const s of ["REASON_LEADONLY_X", "CLOSEST_LEADONLY_X", "REASON_RESTRICTED_X", "CLOSEST_RESTRICTED_X"]) {
+    assert.ok(!dev.includes(s), "developer saw " + s);
+  }
+
+  // The incoming lead sees the lead-only claim (its reason, never the closest passage) and a masked restricted one.
+  const lead = await call("get", "/api/claims", "incoming_lead");
+  const text = JSON.stringify(lead.body);
+  assert.ok(text.includes("REASON_LEADONLY_X"));
+  for (const s of ["CLOSEST_LEADONLY_X", "REASON_RESTRICTED_X", "CLOSEST_RESTRICTED_X"]) {
+    assert.ok(!text.includes(s), "incoming lead saw " + s);
+  }
+  assert.deepEqual(lead.body.find((c) => c.id === "c_003").evidence, []);
+});
