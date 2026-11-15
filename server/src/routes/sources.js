@@ -58,9 +58,10 @@ router.get("/", async (req, res) => {
 
 router.post("/", receive, async (req, res, next) => {
   try {
-    const { sensitivity } = req.body;
-    const formality = req.body.formality || "informal"; // the safer default: informal sources never reach "verified" alone
-
+        // A request with no body at all leaves req.body undefined, so read it defensively.
+    const body = req.body || {};
+    const { sensitivity } = body;
+    const formality = body.formality || "informal"; // the safer default: informal sources never reach "verified" alone
     if (!SENSITIVITY.includes(sensitivity)) {
       return res.status(400).json({ error: "sensitivity is required: " + SENSITIVITY.join(", ") });
     }
@@ -72,6 +73,7 @@ router.post("/", receive, async (req, res, next) => {
     }
 
     const name = path.basename(req.file.originalname);
+    if (name.length > 255) return res.status(400).json({ error: "File name is too long (max 255 characters)" });
     if (!kindFromFilename(name)) {
       return res.status(415).json({ error: "Unsupported file type. Use .md, .json or .csv" });
     }
@@ -81,7 +83,10 @@ router.post("/", receive, async (req, res, next) => {
       parsed = parseSource(name, req.file.buffer.toString("utf8"));
     } catch (err) {
       if (err instanceof IngestError) return res.status(422).json({ error: err.message });
-      throw err;
+      // Anything else thrown while reading the file (for example a JSON file that is just "null")
+      // is the file's fault, not a server fault: log it and answer 422.
+      console.error("ingest: could not read " + name + ":", err.message);
+      return res.status(422).json({ error: "Could not read this file" });
     }
     if (!parsed.chunks.length) {
       return res.status(422).json({ error: "No readable content found in the file" });
