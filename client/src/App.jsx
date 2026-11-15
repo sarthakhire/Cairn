@@ -79,6 +79,7 @@ function App() {
     setAuditLog([])
     setSources([])
     setResolutions([])
+    setIssue(NO_ISSUE)
   }, [])
 
   // The server rejected our token (expired or revoked): go back to sign-in.
