@@ -5,7 +5,7 @@ const { requireRole } = require("../middleware/auth");
 const { load, loadSerialized } = require("../services/claimStore");
 const { serializeClaim } = require("../services/serializer");
 const { canReview, viewClaims } = require("../services/permissions");
-const { currentApproval } = require("../services/handover");
+const { currentApproval, INCOMING_ROLES } = require("../services/handover");
 const { short } = require("../services/versions");
 const { planResolution } = require("../services/resolution");
 const { AnswerError, answerGap } = require("../services/answers");
@@ -28,11 +28,29 @@ async function visibleClaims(role) {
   return viewClaims(role, approved.claims);
 }
 
-router.get("/", async (req, res) => {
-  const parsed = parseClaimQuery(req.query);
+// A preview ("view as") is a reviewer-only question about the live claims, so the lead-only
+// check runs only when `as` is present. Ordinary requests are untouched.
+const leadOnly = requireRole("lead");
+const previewGuard = (req, res, next) => (req.query.as !== undefined ? leadOnly(req, res, next) : next());
+
+router.get("/", previewGuard, async (req, res) => {
+  const { as, ...rest } = req.query;
+  const parsed = parseClaimQuery(rest);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
-  // Gate first, filter second: a filter only ever sees what this role may see.
-  res.json(applyClaimFilters(await visibleClaims(req.user.role), parsed.filters));
+
+  if (as === undefined) {
+    // Gate first, filter second: a filter only ever sees what this role may see.
+    return res.json(applyClaimFilters(await visibleClaims(req.user.role), parsed.filters));
+  }
+
+  if (typeof as !== "string" || !INCOMING_ROLES.includes(as)) {
+    return res.status(400).json({ error: '"as" must be "incoming_lead" or "incoming_developer"' });
+  }
+  // The same gate the real role goes through, applied to the live claims: what that role would see
+  // if the reviewer approved right now. A preview, never stored.
+  const preview = viewClaims(as, await loadSerialized({}));
+  audit.recordPreview({ actorId: req.user.id, role: as });
+  res.json(applyClaimFilters(preview, parsed.filters));
 });
 
 // The log of resolved conflicts, newest first (reviewer only). Declared before "/:id".

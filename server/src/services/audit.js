@@ -48,6 +48,20 @@ function recordDenied({ actorId, role, method, url, action = "Access denied", cl
   }
 }
 
+// A preview ("view as") is not a refusal, but it gets the same one-row-per-minute rule so
+// refreshing the preview does not fill the log. Same safety: never throws, never waits.
+function recordPreview({ actorId, role, now = Date.now() }) {
+  try {
+    if (!actorId) return;
+    const action = "Previewed as " + role;
+    if (!firstDenial(actorId + "|" + action, now)) return;
+    Promise.resolve(
+      record({ actorId, action, detail: "Looked at the claims " + role + " would see if the handover were approved now" })
+    ).catch((err) => console.error("audit: could not record a preview:", err.message));
+  } catch (err) {
+    console.error("audit: could not record a preview:", err.message);
+  }
+}
 // For tests.
 const resetDenialMemory = () => recentDenials.clear();
 
@@ -91,4 +105,4 @@ function serializeAuditEvent(row) {
   };
 }
 
-module.exports = { record, recordDenied, resetDenialMemory, serializeAudit, serializeAuditEvent, DENIAL_WINDOW_MS };
+module.exports = { record, recordDenied, recordPreview, resetDenialMemory, serializeAudit, serializeAuditEvent, DENIAL_WINDOW_MS };

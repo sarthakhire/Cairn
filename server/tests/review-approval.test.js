@@ -489,3 +489,117 @@ test("reason, override, history and original wording never reach an incoming rol
   const lead = JSON.stringify((await call("get", "/api/claims/c_001", "lead")).body);
   for (const s of SENTINELS) assert.ok(lead.includes(s), "the reviewer should see " + s);
 });
+// ---- View as (preview a role's view of the live claims) ----
+
+const auditService = require("../src/services/audit");
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test("view as: the reviewer's preview equals what the incoming role really gets once approved", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  assert.equal((await call("post", "/api/approval", "lead")).status, 201);
+  for (const role of INCOMING) {
+    const real = await call("get", "/api/claims", role);
+    const preview = await call("get", "/api/claims?as=" + role, "lead");
+    assert.equal(preview.status, 200);
+    assert.ok(real.body.length > 0);
+    assert.deepEqual(preview.body, real.body, role);
+  }
+});
+
+test("view as: before any approval the preview shows what approving now would share, the real role still sees nothing", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  assert.deepEqual(ids(await call("get", "/api/claims?as=incoming_developer", "lead")), ["c_001", "c_003"]);
+  assert.deepEqual(ids(await call("get", "/api/claims?as=incoming_lead", "lead")), ["c_001", "c_002", "c_003"]);
+  assert.deepEqual((await call("get", "/api/claims", "incoming_developer")).body, []);
+});
+
+test("view as: a preview never carries text the role may not see, and the other filters still apply", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  const dev = JSON.stringify((await call("get", "/api/claims?as=incoming_developer", "lead")).body);
+  for (const s of Object.values(SECRETS)) assert.ok(!dev.includes(s), "preview as developer showed " + s);
+  assert.deepEqual(ids(await call("get", "/api/claims?as=incoming_lead&visibility=lead_only", "lead")), ["c_002"]);
+});
+
+test("view as: only the reviewer may use it; anyone else gets the usual 403, the denial is logged, and nothing is shown", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  const usual = await call("post", "/api/approval", "incoming_lead"); // an ordinary lead-only refusal
+  assert.equal(usual.status, 403);
+  audits.length = 0;
+  auditService.resetDenialMemory();
+
+  for (const role of INCOMING) {
+    const res = await call("get", "/api/claims?as=incoming_developer", role);
+    assert.equal(res.status, 403, role);
+    assert.deepEqual(res.body, usual.body);
+  }
+  await tick();
+  const denied = audits.filter((a) => a.outcome === "denied");
+  assert.equal(denied.length, 2);
+  for (const a of denied) {
+    assert.ok(a.detail.includes("/api/claims"));
+    assert.ok(!a.detail.includes("as="));
+  }
+  assert.ok(!audits.some((a) => String(a.action).startsWith("Previewed")));
+  assert.equal((await call("get", "/api/claims?as=incoming_developer")).status, 401); // no token: 401, not logged
+});
+
+test("view as: an unknown, blank or repeated role is a 400", async () => {
+  reset();
+  settle();
+  for (const q of ["as=lead", "as=nobody", "as=", "as=incoming_lead&as=incoming_developer"]) {
+    const res = await call("get", "/api/claims?" + q, "lead");
+    assert.equal(res.status, 400, q);
+    assert.equal(typeof res.body.error, "string");
+  }
+  await tick();
+  assert.ok(!audits.some((a) => String(a.action).startsWith("Previewed")));
+});
+
+test("view as: a preview writes one audit row per role per minute, with no claim content", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  await call("get", "/api/claims?as=incoming_developer", "lead");
+  await call("get", "/api/claims?as=incoming_developer", "lead");
+  await call("get", "/api/claims?as=incoming_developer&visibility=team", "lead");
+  await call("get", "/api/claims?as=incoming_lead", "lead");
+  await tick();
+  const rows = audits.filter((a) => String(a.action).startsWith("Previewed"));
+  assert.deepEqual(rows.map((a) => a.action), ["Previewed as incoming_developer", "Previewed as incoming_lead"]);
+  for (const r of rows) {
+    assert.equal(r.outcome, undefined); // an ordinary, allowed row
+    assert.ok(!JSON.stringify(r).includes(SECRETS.leadOnly));
+  }
+  await call("get", "/api/claims", "lead"); // an ordinary list is not a preview
+  await tick();
+  assert.equal(audits.filter((a) => String(a.action).startsWith("Previewed")).length, 2);
+});
+
+test("view as: a failing audit log does not change the preview", async () => {
+  reset();
+  settle();
+  auditService.resetDenialMemory();
+  const originalCreate = AuditLog.create;
+  const originalError = console.error;
+  AuditLog.create = async () => {
+    throw new Error("database down");
+  };
+  console.error = () => {};
+  try {
+    const res = await call("get", "/api/claims?as=incoming_developer", "lead");
+    assert.equal(res.status, 200);
+    assert.deepEqual(ids(res), ["c_001", "c_003"]);
+    await tick();
+  } finally {
+    AuditLog.create = originalCreate;
+    console.error = originalError;
+  }
+});

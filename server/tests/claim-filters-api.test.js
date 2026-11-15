@@ -63,7 +63,7 @@ test("no parameters and unknown parameters return the full list", async () => {
   const all = await get("/api/claims", "lead");
   assert.equal(all.status, 200);
   assert.deepEqual(ids(all), ["c_001", "c_002", "c_003", "c_004", "c_005", "c_006"]);
-  const extra = await get("/api/claims?_=123&as=incoming_developer", "lead");
+  const extra = await get("/api/claims?_=123&foo=bar", "lead");
   assert.deepEqual(ids(extra), ids(all));
 });
 
@@ -148,5 +148,13 @@ test("for every role and query, results are a subset of the unfiltered list and 
       if (role === "incoming_developer") assert.ok(!text.includes(SECRETS.leadOnly), role + " leaked lead-only via ?" + query);
       if (role !== "lead") assert.ok(!text.includes(SECRETS.draft), role + " leaked a draft via ?" + query);
     }
+  }
+});
+test("as=<role> gives the lead the same list that role really gets", async () => {
+  for (const role of ["incoming_lead", "incoming_developer"]) {
+    const real = await get("/api/claims", role);
+    const preview = await get("/api/claims?as=" + role, "lead");
+    assert.equal(preview.status, 200);
+    assert.deepEqual(preview.body, real.body, role);
   }
 });
