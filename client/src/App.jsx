@@ -119,6 +119,8 @@ function App() {
   const locked = role !== 'lead' && !approval
   const roleClaims = locked ? [] : claims
   const gaps = role === 'lead' ? findGaps(claims) : []
+  const draftCount = claims.filter((claim) => claim.review?.state === 'draft').length
+  const [queueTarget, setQueueTarget] = useState(null)
 
   const views = [
     { value: 'claims', label: 'Claims' },
