@@ -157,12 +157,15 @@ const loadTier = (tier) =>
     .sort({ sourceId: 1, n: 1 })
     .lean();
 
+    function extractionTiers(env = process.env) {
+    return env.EXTRACT_RESTRICTED === "false" ? SENSITIVITY.filter((t) => t !== "restricted") : SENSITIVITY;
+}
 // Runs every tier and type, then replaces the old drafts with the new ones.
 // Reviewed claims (accepted, edited, rejected) are never touched.
 async function runExtraction({
   actorId,
   generate = generateJson,
-  tiers = SENSITIVITY,
+  tiers = extractionTiers(),
   types = CLAIM_TYPES,
   asOf = process.env.EXTRACTION_AS_OF || null,
   log = console.warn,
@@ -185,7 +188,14 @@ async function runExtraction({
     all.push(...done.drafts);
   }
 
-  if (chunkTotal === 0) throw new ExtractionFailed("No source chunks yet. Upload sources first.", 422);
+  if (chunkTotal === 0) {
+  throw new ExtractionFailed(
+    tiers.includes("restricted")
+      ? "No source chunks yet. Upload sources first."
+      : "No team or lead-only chunks to read. Restricted sources are not sent to the AI model (EXTRACT_RESTRICTED=false).",
+    422
+  );
+}
   if (all.length === 0 && skippedBatches > 0) {
     throw new ExtractionFailed("The AI model returned no usable output. Existing drafts were kept.", 502);
   }
@@ -252,6 +262,7 @@ async function runExtraction({
 
 module.exports = {
   runExtraction,
+  extractionTiers,
   collectCandidates,
   finalizeTier,
   splitBatches,

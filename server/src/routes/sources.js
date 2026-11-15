@@ -96,7 +96,9 @@ router.post("/", receive, async (req, res, next) => {
         const cleaned = redact(c.text);
         for (const key of ["credential", "email", "phone"]) redactions[key] += cleaned.counts[key];
         redactions.total += cleaned.total;
-        return { ...c, text: cleaned.text };
+        // The author field can hold an email or a login, so it is masked too (not counted).
+        const author = typeof c.author === "string" ? redact(c.author).text : c.author;
+        return { ...c, text: cleaned.text, author };
       });
     }
 
@@ -147,4 +149,4 @@ router.post("/", receive, async (req, res, next) => {
   }
 });
 
-module.exports = router;
+module.exports = router;
