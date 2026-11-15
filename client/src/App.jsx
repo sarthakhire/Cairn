@@ -176,6 +176,7 @@ function App() {
     try {
       const result = await change()
       applyData(await fetchAll(role))
+      setIssue(NO_ISSUE)
       return result ?? true
     } catch (err) {
       setNotice(err.message)
