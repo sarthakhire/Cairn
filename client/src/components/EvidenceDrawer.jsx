@@ -112,7 +112,7 @@ function ReasonField({ id, label, value, onChange }) {
   )
 }
 
-function ReviewSection({ claim, onReview, onEdit, canReview, error }) {
+function ReviewSection({ claim, onReview, onEdit, canReview, error, startMode = 'idle' }) {
   const [mode, setMode] = useState('idle')
   const [draft, setDraft] = useState(claim.statement)
   const [reason, setReason] = useState('')
