@@ -128,6 +128,9 @@ function App() {
     { value: 'plan', label: 'First-week plan' },
     ...(role === 'lead'
       ? [
+          { value: 'queue',
+            label: draftCount > 0 ? `Review queue (${draftCount})` : 'Review queue',
+          },
           { value: 'conflicts', label: 'Conflicts' },
           {
             value: 'gaps',
