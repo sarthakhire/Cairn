@@ -4,6 +4,7 @@
 // hides anything: it sends the signed-in user's token and returns what comes back.
 
 import { createMockApi } from '@/lib/mockApi'
+import { buildAuditQuery } from '@/lib/auditQuery'
 const BASE = (import.meta.env?.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '')
 const KEY = 'handovertrail.session'
 
