@@ -75,7 +75,6 @@ async function request(method, path, { body, form, timeoutMs = TIMEOUT_MS } = {}
   }
 
   let data = null
-  const text = await response.text()
   if (text) {
     try {
       data = JSON.parse(text)
@@ -142,7 +141,7 @@ const realApi = {
     form.append('sensitivity', sensitivity) // fields first, the file last
     form.append('formality', formality)
     form.append('file', file)
-    return request('POST', '/api/sources', { form })
+        return request('POST', '/api/sources', { form, timeoutMs: LONG_TIMEOUT_MS })
   },
 }
 
