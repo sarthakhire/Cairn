@@ -454,6 +454,34 @@ export function createMockApi(ApiError) {
       lead()
       return clone(audit)
     },
+    
+    // Same filters and cursor as GET /api/audit/events. Newest rows come first and
+    // `before` is the id of the last row of the previous page.
+    async auditEvents(filters = {}, { before = null, limit = 50 } = {}) {
+      await wait()
+      lead()
+      const cap = Math.min(Math.max(Number(limit) || 50, 1), 200)
+      const needle = (value) => String(value ?? '').trim().toLowerCase()
+
+      let list = audit.filter((row) => {
+        if (needle(filters.actor) && !row.actor.toLowerCase().includes(needle(filters.actor))) return false
+        if (needle(filters.action) && !row.action.toLowerCase().includes(needle(filters.action))) return false
+        if (needle(filters.claimId) && String(row.claimId ?? '').toLowerCase() !== needle(filters.claimId)) return false
+        if ((filters.outcome === 'allowed' || filters.outcome === 'denied') && row.outcome !== filters.outcome) return false
+        const when = row.at.slice(0, 10)
+        if (filters.from && when < filters.from) return false
+        if (filters.to && when > filters.to) return false
+        return true
+      })
+
+      if (before) {
+        const index = list.findIndex((row) => row.id === before)
+        list = index === -1 ? [] : list.slice(index + 1)
+      }
+      const rows = list.slice(0, cap)
+      const nextCursor = list.length > cap ? rows[rows.length - 1].id : null
+      return { rows: clone(rows), nextCursor }
+    },
 
     async sources() {
       await wait()
