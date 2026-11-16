@@ -74,6 +74,7 @@ function AuditLog() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load(EMPTY_AUDIT_FILTERS, null, false)
   }, [load])
 

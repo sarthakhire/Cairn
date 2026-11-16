@@ -53,7 +53,6 @@ function App() {
   const [claims, setClaims] = useState([])
   const [approvalState, setApprovalState] = useState(EMPTY_APPROVAL)
   const [resolutions, setResolutions] = useState([])
-  const [auditLog, setAuditLog] = useState([])
   const [sources, setSources] = useState([])
   const [loading, setLoading] = useState(() => Boolean(api.currentUser()))
   const [busy, setBusy] = useState(false)
@@ -76,7 +75,6 @@ function App() {
   const applyData = useCallback((data) => {
     setClaims(data.claims)
     setApprovalState({ ...EMPTY_APPROVAL, ...data.approval })
-    setAuditLog(data.audit)
     setSources(data.sources)
     setResolutions(data.resolutions)
   }, [])
@@ -84,7 +82,6 @@ function App() {
   const clearData = useCallback(() => {
     setClaims([])
     setApprovalState(EMPTY_APPROVAL)
-    setAuditLog([])
     setSources([])
     setResolutions([])
     setPreviewAs(null)
