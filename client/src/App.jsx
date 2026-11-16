@@ -130,7 +130,7 @@ function App() {
     { value: 'claims', label: 'Claims' },
     { value: 'timeline', label: 'Timeline' },
     { value: 'plan', label: 'First-week plan' },
-    ...(role === 'lead'
+    ...(role === 'lead' && !previewAs
       ? [
           { value: 'queue',
             label: draftCount > 0 ? `Review queue (${draftCount})` : 'Review queue',
@@ -172,7 +172,40 @@ function App() {
     setSelectedId(null)
     setGapNotice('')
   }
-
+    // Lead-only preview. The server builds the view (GET /api/claims?as=<role>), so this
+  // shows what that role would really get. Nothing here changes any data.
+  async function handlePreview(next) {
+    setSelectedId(null)
+    setQueueTarget(null)
+    setNotice('')
+    if (!next) {
+      setPreviewAs(null)
+      setPreviewClaims([])
+      return
+    }
+    setBusy(true)
+    try {
+      const list = await api.claims(next)
+      // Incoming roles never see drafts, rejected claims or review history. If any of
+      // them is here, the server ignored `as` and this would be a false preview.
+      const leaked = list.some(
+        (claim) =>
+          claim.review?.state === 'draft' ||
+          claim.review?.state === 'rejected' ||
+          claim.review?.history !== undefined
+      )
+      if (leaked) {
+        setNotice('The server did not return a filtered preview, so the preview is off.')
+        return
+      }
+      setPreviewClaims(list)
+      setPreviewAs(next)
+    } catch (err) {
+      setNotice(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
   function handleLogout() {
     api.logout()
     setQueueTarget(null)
