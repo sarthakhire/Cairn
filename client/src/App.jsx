@@ -36,7 +36,7 @@ const EMPTY_APPROVAL = {
 // claims for the role, so this never decides what a person may see.
 async function fetchAll(role) {
   const lead = role === 'lead'
-  const [claims, approval, audit, sources, resolutions] = await Promise.all([
+  const [claims, approval, sources, resolutions] = await Promise.all([
     api.claims(),
     api.approval(),
     lead ? api.audit() : [],
