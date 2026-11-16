@@ -11,7 +11,9 @@
     "export:demo": "node scripts/export-demo.js",
     "restore:demo": "node scripts/restore-demo.js",
     "reverify": "node scripts/reverify.js",
-    "seed:planted": "node scripts/seed-planted.js"
+    "seed:planted": "node scripts/seed-planted.js",
+    "check:demo": "node scripts/check-demo.js",
+    "reset:demo": "node scripts/reset-demo-state.js"
   },
   "keywords": [],
   "author": "",
