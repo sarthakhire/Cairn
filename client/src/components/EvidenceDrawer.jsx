@@ -326,7 +326,7 @@ function ReviewSection({ claim, onReview, onEdit, canReview, error, startMode = 
   )
 }
 
-function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview, error = '' }) {
+function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview, error = '', startMode = 'idle' }) {
   const conflicts = claim
     ? allClaims.filter((c) => (claim.conflictsWith ?? []).includes(c.id))
     : []
