@@ -82,6 +82,8 @@ function App() {
     setAuditLog([])
     setSources([])
     setResolutions([])
+    setPreviewAs(null)
+    setPreviewClaims([])
     setIssue(NO_ISSUE)
   }, [])
 
@@ -119,7 +121,7 @@ function App() {
 
   // Incoming roles see nothing until the reviewer approves a version.
   const locked = role !== 'lead' && !approval
-  const roleClaims = locked ? [] : claims
+  const roleClaims = previewAs ? previewClaims : locked ? [] : claims
   const gaps = role === 'lead' ? findGaps(claims) : []
   const draftCount = claims.filter((claim) => claim.review?.state === 'draft').length
   const [queueTarget, setQueueTarget] = useState(null)
