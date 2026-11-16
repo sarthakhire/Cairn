@@ -20,6 +20,7 @@ import { findGaps } from '@/lib/gaps'
 import { describeCounts } from '@/lib/redact'
 import { countWarnings } from '@/lib/warnings'
 import ReviewQueue from '@/components/ReviewQueue'
+import PreviewBar from '@/components/PreviewBar'
 import { api } from '@/lib/api'
 
 const NO_ISSUE = { message: '', blockers: [] }
@@ -62,6 +63,8 @@ function App() {
   const [type, setType] = useState('all')
   const [verification, setVerification] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
+  const [previewAs, setPreviewAs] = useState(null)
+  const [previewClaims, setPreviewClaims] = useState([])
 
   const role = user?.role
 
