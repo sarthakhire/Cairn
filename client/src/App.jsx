@@ -39,11 +39,10 @@ async function fetchAll(role) {
   const [claims, approval, sources, resolutions] = await Promise.all([
     api.claims(),
     api.approval(),
-    lead ? api.audit() : [],
     lead ? api.sources() : [],
     lead ? api.resolutions() : [],
   ])
-  return { claims, approval, audit, sources, resolutions }
+  return { claims, approval, sources, resolutions }
 }
 
 function App() {
@@ -431,7 +430,7 @@ function App() {
                   />
                 )}
 
-                {activeView === 'audit' && <AuditLog entries={auditLog} />}
+                {activeView === 'audit' && <AuditLog />}
               </>
             )}
           </>
