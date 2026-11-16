@@ -58,13 +58,18 @@ Claim.create = async (d) => {
 };
 Claim.bulkWrite = async (ops) => {
   bulkOps = ops;
+  let matched = 0;
   for (const { updateOne } of ops) {
     const c = live.find((x) => x.claimId === updateOne.filter.claimId);
+    const want = updateOne.filter.conflictsWith;
+    if (want && JSON.stringify(c.conflictsWith) !== JSON.stringify(want)) continue; // the precondition no longer holds
+    matched += 1;
     const set = updateOne.update.$set;
     c.status = set.status;
     c.conflictsWith = set.conflictsWith;
     if (set["review.state"]) c.review = { state: set["review.state"], reviewerId: { name: "Name lead" }, at: set["review.at"] };
   }
+  return { matchedCount: matched };
 };
 Source.findOneAndUpdate = async (filter, update) => {
   sourceCalls.push({ filter, update });
@@ -187,4 +192,65 @@ test("answer: only open, non-restricted questions can be answered, and only by t
   assert.equal(live.length, 6);
   assert.equal(chunks.length, 0);
   assert.equal(audits.filter((a) => a.outcome !== "denied").length, 0);
+});
+// ---- Sending the same thing twice ----
+
+test("resolve: the same request sent again is refused, writes nothing, and the decision cannot be turned around", async () => {
+  reset();
+  const first = await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_002" });
+  assert.equal(first.status, 200);
+  bulkOps = [];
+  const again = await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_002" });
+  const reversed = await call("post", "/api/claims/resolve", "lead", { keepId: "c_002", dropId: "c_001" });
+  for (const res of [again, reversed]) {
+    assert.ok(res.status >= 400 && res.status < 500, "got " + res.status);
+    assert.equal(typeof res.body.error, "string");
+  }
+  assert.equal(bulkOps.length, 0);
+  assert.equal(audits.filter((a) => a.action === "Conflict resolved").length, 1);
+  const state = Object.fromEntries(live.map((c) => [c.claimId, c.review.state]));
+  assert.equal(state.c_001, "accepted");
+  assert.equal(state.c_002, "rejected");
+});
+
+test("resolve: a request that planned from data another request already changed writes nothing and logs nothing", async () => {
+  reset();
+  const stale = structuredClone(live); // what two overlapping requests would both have read
+  assert.equal((await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_002" })).status, 200);
+
+  const realFind = Claim.find;
+  Claim.find = (f) =>
+    f && f["conflictsWith.0"] ? chain(structuredClone(stale.filter((c) => c.conflictsWith.length > 0))) : realFind(f);
+  try {
+    const late = await call("post", "/api/claims/resolve", "lead", { keepId: "c_001", dropId: "c_002" });
+    assert.equal(late.status, 409);
+    assert.match(late.body.error, /no longer in conflict/);
+  } finally {
+    Claim.find = realFind;
+  }
+  assert.equal(audits.filter((a) => a.action === "Conflict resolved").length, 1);
+  const state = Object.fromEntries(live.map((c) => [c.claimId, c.review.state]));
+  assert.equal(state.c_001, "accepted");
+  assert.equal(state.c_002, "rejected");
+});
+
+test("answer: the same answer sent twice makes one claim and one audit row, and the new draft cannot be answered", async () => {
+  reset();
+  const body = { answer: "Priya owns the deploy script." };
+  const first = await call("post", "/api/claims/c_003/answer", "lead", body);
+  assert.equal(first.status, 201);
+  const newId = first.body.claim.id;
+  const claimCount = live.length;
+  const chunkCount = chunks.length;
+  const seq = counterSeq;
+
+  for (const id of ["c_003", newId]) {
+    const res = await call("post", "/api/claims/" + id + "/answer", "lead", body);
+    assert.ok(res.status >= 400 && res.status < 500, id + " gave " + res.status);
+    assert.equal(typeof res.body.error, "string");
+  }
+  assert.equal(live.length, claimCount);
+  assert.equal(chunks.length, chunkCount);
+  assert.equal(counterSeq, seq); // a refused answer does not use up a claim id
+  assert.equal(audits.filter((a) => a.action === "Gap answered").length, 1);
 });

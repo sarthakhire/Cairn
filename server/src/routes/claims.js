@@ -155,8 +155,11 @@ router.post("/resolve", requireRole("lead"), async (req, res) => {
   const plan = planResolution(linked, keepId, dropId);
   if (plan.error) return res.status(plan.status).json({ error: plan.error });
 
-  const at = new Date();
-  await Claim.bulkWrite(
+   const at = new Date();
+  // Each write only applies if the claim still has the conflict links it had when the plan was made.
+  // A second, overlapping request (a double click) therefore finds nothing left to change.
+  const linksBefore = new Map(linked.map((c) => [c.claimId, c.conflictsWith || []]));
+  const result = await Claim.bulkWrite(
     plan.updates.map((u) => {
       const set = { status: u.status, conflictsWith: u.conflictsWith };
       if (u.review) {
@@ -164,9 +167,16 @@ router.post("/resolve", requireRole("lead"), async (req, res) => {
         set["review.reviewerId"] = req.user.id;
         set["review.at"] = at;
       }
-      return { updateOne: { filter: { claimId: u.claimId }, update: { $set: set } } };
+      return {
+        updateOne: {
+          filter: { claimId: u.claimId, conflictsWith: linksBefore.get(u.claimId) || [] },
+          update: { $set: set },
+        },
+      };
     })
   );
+  const matched = result && typeof result.matchedCount === "number" ? result.matchedCount : plan.updates.length;
+  if (matched === 0) return res.status(409).json({ error: "These claims are no longer in conflict" });
 
   await audit.record({
     actorId: req.user.id,
