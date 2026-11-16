@@ -67,6 +67,8 @@ function App() {
   const [previewAs, setPreviewAs] = useState(null)
   const [previewClaims, setPreviewClaims] = useState([])
   const [serverReady, setServerReady] = useState(USING_MOCK)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   const role = user?.role
 
@@ -108,7 +110,7 @@ function App() {
       })
       .catch((err) => {
         // A 401 already sent the app back to sign-in with its own message.
-        if (!cancelled && err.status !== 401) setNotice(err.message)
+        if (!cancelled && err.status !== 401) setLoadError(err.message)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -116,7 +118,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [user, serverReady, applyData])
+  }, [user, serverReady, reloadKey, applyData])
 
   const { approval, acknowledgements, pendingCount, changedCount, nextVersion, versions } =
     approvalState
@@ -134,18 +136,19 @@ function App() {
     { value: 'plan', label: 'First-week plan' },
     ...(role === 'lead' && !previewAs
       ? [
-          { value: 'queue',
-            label: draftCount > 0 ? `Review queue (${draftCount})` : 'Review queue',
-          },
-          { value: 'conflicts', label: 'Conflicts' },
-          {
-            value: 'gaps',
-            label: gaps.length > 0 ? `Gap questions (${gaps.length})` : 'Gap questions',
-          },
-          { value: 'sources', label: 'Sources' },
-          { value: 'versions', label: 'Versions' },
-          { value: 'audit', label: 'Audit log' },
-        ]
+        {
+          value: 'queue',
+          label: draftCount > 0 ? `Review queue (${draftCount})` : 'Review queue',
+        },
+        { value: 'conflicts', label: 'Conflicts' },
+        {
+          value: 'gaps',
+          label: gaps.length > 0 ? `Gap questions (${gaps.length})` : 'Gap questions',
+        },
+        { value: 'sources', label: 'Sources' },
+        { value: 'versions', label: 'Versions' },
+        { value: 'audit', label: 'Audit log' },
+      ]
       : []),
   ]
   const activeView = views.some((item) => item.value === view) ? view : 'claims'
@@ -158,7 +161,7 @@ function App() {
   )
 
   const selectedClaim = roleClaims.find((claim) => claim.id === selectedId) ?? null
-    // Opens the evidence drawer from the queue, straight into a review form.
+  // Opens the evidence drawer from the queue, straight into a review form.
   function openFromQueue(id, mode = 'idle') {
     setQueueTarget({ id, mode })
     setSelectedId(id)
@@ -167,6 +170,7 @@ function App() {
     setLoading(true)
     setNotice('')
     setUser(nextUser)
+    setLoadError('')
     setView('claims')
     setStatus('all')
     setType('all')
@@ -174,7 +178,7 @@ function App() {
     setSelectedId(null)
     setGapNotice('')
   }
-    // Lead-only preview. The server builds the view (GET /api/claims?as=<role>), so this
+  // Lead-only preview. The server builds the view (GET /api/claims?as=<role>), so this
   // shows what that role would really get. Nothing here changes any data.
   async function handlePreview(next) {
     setSelectedId(null)
@@ -243,7 +247,7 @@ function App() {
     return result
   }
 
-    async function handleApprove() {
+  async function handleApprove() {
     setBusy(true)
     setNotice('')
     try {
@@ -263,7 +267,7 @@ function App() {
     } finally {
       setBusy(false)
     }
-  } 
+  }
 
   function handleRevoke() {
     return act(() => api.revoke())
@@ -294,8 +298,7 @@ function App() {
     const { redacted } = result
     if (redacted && redacted.total > 0) {
       setGapNotice(
-        `Your answer was saved, but ${redacted.total} sensitive ${
-          redacted.total === 1 ? 'item was' : 'items were'
+        `Your answer was saved, but ${redacted.total} sensitive ${redacted.total === 1 ? 'item was' : 'items were'
         } redacted (${describeCounts(redacted)}). Share secrets through a restricted source instead.`
       )
     } else {
@@ -333,7 +336,22 @@ function App() {
           </p>
         )}
 
-        {loading ? (
+        {loadError ? (
+          <div role="alert" className="rounded-lg border border-destructive/50 p-6 text-center">
+            <p className="text-sm">Could not load the handover. {loadError}</p>
+            <button
+              type="button"
+              className="mt-3 text-sm underline"
+              onClick={() => {
+                setLoadError('')
+                setLoading(true)
+                setReloadKey((k) => k + 1)
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        ) : loading ? (
           <p role="status" className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
             Loading the handover...
           </p>
@@ -380,11 +398,10 @@ function App() {
                       type="button"
                       onClick={() => setView(item.value)}
                       aria-pressed={activeView === item.value}
-                      className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${
-                        activeView === item.value
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground'
-                      }`}
+                      className={`-mb-px border-b-2 px-1 pb-2 text-sm transition-colors ${activeView === item.value
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
                     >
                       {item.label}
                     </button>
@@ -418,7 +435,11 @@ function App() {
                       ))}
                       {visibleClaims.length === 0 && (
                         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                          No claims match these filters.
+                          {locked
+                            ? 'Nothing has been shared yet. The lead has not approved a handover.'
+                            : roleClaims.length === 0
+                              ? 'There are no claims yet.'
+                              : 'No claims match these filters.'}
                         </p>
                       )}
                     </div>
