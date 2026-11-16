@@ -22,6 +22,7 @@ import { countWarnings } from '@/lib/warnings'
 import ReviewQueue from '@/components/ReviewQueue'
 import PreviewBar from '@/components/PreviewBar'
 import WakeUp from '@/components/WakeUp'
+import StartHere from '@/components/StartHere'
 import { api, USING_MOCK } from '@/lib/api'
 
 const NO_ISSUE = { message: '', blockers: [] }
@@ -386,6 +387,9 @@ function App() {
             />
             {role === 'lead' && (
               <PreviewBar value={previewAs} onChange={handlePreview} disabled={busy} />
+            )}
+            {role === 'lead' && !previewAs && !locked && (
+              <StartHere onGo={setView} />
             )}
             {!locked && (
               <>
