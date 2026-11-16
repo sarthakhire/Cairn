@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { questionFor } from '@/lib/gaps'
 
-function Question({ claim, onAnswer }) {
+function Question({ claim, onAnswer, busy = false }) {
   const [text, setText] = useState('')
   const evidence = claim.evidence[0]
 
   function submit() {
     const answer = text.trim()
-    if (!answer) return
+      if (!answer || busy) return
     onAnswer(claim.id, answer)
   }
 
@@ -35,7 +35,7 @@ function Question({ claim, onAnswer }) {
       <button
         type="button"
         onClick={submit}
-        disabled={!text.trim()}
+        disabled={!text.trim() || busy}
         className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Save answer
@@ -44,7 +44,7 @@ function Question({ claim, onAnswer }) {
   )
 }
 
-function GapQuestions({ questions, onAnswer }) {
+function GapQuestions({ questions, onAnswer, busy = false }) {
   if (questions.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -61,7 +61,7 @@ function GapQuestions({ questions, onAnswer }) {
       </p>
       <ul className="space-y-3">
         {questions.map((claim) => (
-          <Question key={claim.id} claim={claim} onAnswer={onAnswer} />
+          <Question key={claim.id} claim={claim} onAnswer={onAnswer} busy={busy} />
         ))}
       </ul>
     </div>
