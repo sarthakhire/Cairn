@@ -1,8 +1,8 @@
 import { ROLES } from '@/lib/roles'
 
 const INCOMING = ROLES.filter((item) => item.value !== 'lead')
+function AcknowledgeBar({ role, approval, acknowledgements, onAcknowledge, busy = false }) {
 
-function AcknowledgeBar({ role, approval, acknowledgements, onAcknowledge }) {
   if (!approval) return null
 
   if (role === 'lead') {
