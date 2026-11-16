@@ -18,9 +18,11 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
 }
 
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 })
   .then(() => {
     console.log("MongoDB connected");
+    // From now on, requests made while the database is unreachable get an immediate 503 (see app.js).
+    app.set("requireDb", true);
     app.listen(PORT, () => console.log("API running on port " + PORT));
   })
   .catch((err) => {

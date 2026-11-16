@@ -16,9 +16,20 @@ app.use(express.json({ limit: "2mb" }));
 // when the database is down. It stays ok:true then, so the host does not restart a healthy server
 // because of a database blip. The client waits for db "up" before it lets anyone log in.
 const DB_STATE = { 1: "up", 2: "connecting" };
+const DB_DOWN_MESSAGE = "The database is not reachable right now. Try again in a moment.";
+// Errors the driver raises when it cannot reach the database, including a command that waited too long.
+const DB_ERRORS = new Set(["MongooseServerSelectionError", "MongoServerSelectionError", "MongoNetworkError", "MongoNetworkTimeoutError"]);
 app.get("/api/health", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, db: DB_STATE[mongoose.connection.readyState] || "down" });
+});
+// When the database is unreachable, answer at once instead of letting every request wait for a
+// timeout. index.js switches this on after the first successful connection, so tests are unaffected.
+app.use("/api", (req, res, next) => {
+  if (app.get("requireDb") && mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: DB_DOWN_MESSAGE });
+  }
+  next();
 });
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/sources", auth, requireRole("lead"), require("./routes/sources"));
@@ -40,6 +51,11 @@ app.use((err, req, res, next) => {
   }
   if (err.type === "entity.too.large") {
     return res.status(413).json({ error: "Request too large" });
+  }
+
+    if (DB_ERRORS.has(err.name) || /buffering timed out/.test(err.message || "")) {
+    console.error("database unreachable:", err.message);
+    return res.status(503).json({ error: DB_DOWN_MESSAGE });
   }
   // Other client errors raised by Express and the body parser (unsupported charset or encoding,
   // a malformed URL escape, an aborted request) carry a 4xx status. Say what it is, never err.message.
