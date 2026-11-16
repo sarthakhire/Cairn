@@ -6,6 +6,11 @@ import { ROLES } from '@/lib/roles'
 function roleLabel(role) {
   return ROLES.find((item) => item.value === role)?.label ?? role
 }
+const ROLE_HINTS = {
+  lead: 'Reviews claims, approves the handover, sees the audit trail.',
+  incoming_lead: 'Sees the approved handover, including lead-only claims.',
+  incoming_developer: 'Sees only the approved, team-visible claims.',
+}
 
 function Login({ onLogin, notice }) {
   const [email, setEmail] = useState('')
@@ -117,4 +122,4 @@ function Login({ onLogin, notice }) {
   )
 }
 
-export default Login
+export default Login
