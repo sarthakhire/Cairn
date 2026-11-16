@@ -21,7 +21,8 @@ import { describeCounts } from '@/lib/redact'
 import { countWarnings } from '@/lib/warnings'
 import ReviewQueue from '@/components/ReviewQueue'
 import PreviewBar from '@/components/PreviewBar'
-import { api } from '@/lib/api'
+import WakeUp from '@/components/WakeUp'
+import { api, USING_MOCK } from '@/lib/api'
 
 const NO_ISSUE = { message: '', blockers: [] }
 const EMPTY_APPROVAL = {
@@ -65,6 +66,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(null)
   const [previewAs, setPreviewAs] = useState(null)
   const [previewClaims, setPreviewClaims] = useState([])
+  const [serverReady, setServerReady] = useState(USING_MOCK)
 
   const role = user?.role
 
@@ -98,7 +100,7 @@ function App() {
 
   // Load everything when someone signs in, or when a saved session is restored.
   useEffect(() => {
-    if (!user) return undefined
+    if (!user || !serverReady) return undefined
     let cancelled = false
     fetchAll(user.role)
       .then((data) => {
@@ -114,7 +116,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [user, applyData])
+  }, [user, serverReady, applyData])
 
   const { approval, acknowledgements, pendingCount, changedCount, nextVersion, versions } =
     approvalState
@@ -300,6 +302,8 @@ function App() {
       setGapNotice('')
     }
   }
+
+  if (!serverReady) return <WakeUp onReady={setServerReady} />
 
   if (!user) {
     return <Login onLogin={handleLogin} notice={notice} />
