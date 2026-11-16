@@ -102,11 +102,16 @@ function Login({ onLogin, notice }) {
                   type="button"
                   onClick={() => attempt(user.email, user.password)}
                   disabled={busy}
-                  className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary/60"
+                        className="block w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary/60 disabled:opacity-50"
                 >
-                  <span>{roleLabel(user.role)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {user.email}
+                  <span className="flex items-center justify-between">
+                    <span>{roleLabel(user.role)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {user.email}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {ROLE_HINTS[user.role] ?? ''}
                   </span>
                 </button>
               </li>
