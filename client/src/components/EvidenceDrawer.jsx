@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import StatusBadge from '@/components/StatusBadge'
 import VerificationBadge from '@/components/VerificationBadge'
 import { diffWords, stripEdgeEllipsis } from '@/lib/diff'
+import HistoryPanel from '@/components/HistoryPanel'
+import { hasHistory } from '@/lib/history'
 
 const MIN_REASON = 10
 const MAX_REASON = 500
@@ -413,6 +415,14 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 error={error}
                 startMode={startMode}
               />
+              {canReview && (hasHistory(claim.review) || claim.review?.state !== 'draft') && (
+                <HistoryPanel
+                  key={claim.id}
+                  review={claim.review}
+                  error={error}
+                  onUndo={() => onReview(claim.id, 'reopen')}
+                />
+              )}
             </div>
           </>
         )}
