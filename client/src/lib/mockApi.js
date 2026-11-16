@@ -272,9 +272,23 @@ export function createMockApi(ApiError) {
       writeSession(null)
     },
 
-    async claims() {
+    // `as` is the lead's preview: the live claims through the same gate that role
+    // would get, which equals what it would see if the lead approved right now.
+    async claims(as) {
       await wait()
       const { role } = user()
+      if (as) {
+        lead()
+        if (as !== 'incoming_lead' && as !== 'incoming_developer') {
+          fail('Role must be incoming_lead or incoming_developer.', 400)
+        }
+        const action = `Previewed as ${as}`
+        const minute = stamp().slice(0, 16)
+        if (!audit.some((row) => row.action === action && row.at.slice(0, 16) === minute)) {
+          log(action, null)
+        }
+        return viewFor(as, clone(claims))
+      }
       const source = role === 'lead' ? claims : approval ? approval.snapshot : []
       return viewFor(role, clone(source))
     },
