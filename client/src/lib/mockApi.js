@@ -158,6 +158,24 @@ export function createMockApi(ApiError) {
   }
 
   log('Handover approved', 'Version 1.')
+  
+  // Earlier activity, so the audit filters and paging have something to work on.
+  const earlier = [
+    ['2026-11-14T10:50:00', 'Demo Incoming developer', 'incoming_developer', 'Access denied', 'incoming_developer tried POST /api/approval', 'denied', null],
+    ['2026-11-14T10:45:00', 'Demo Incoming lead', 'incoming_lead', 'Access denied', 'incoming_lead tried POST /api/sources', 'denied', null],
+    ['2026-11-14T10:40:00', LEAD_NAME, 'lead', 'Previewed as incoming_developer', null, 'allowed', null],
+    ['2026-11-14T10:35:00', 'Demo Incoming developer', 'incoming_developer', 'Acknowledged', 'Confirmed receipt of the handover.', 'allowed', null],
+    ['2026-11-14T10:30:00', LEAD_NAME, 'lead', 'Rejected', 'Reason: The task board entry is from January', 'allowed', 'c_010'],
+    ['2026-11-14T10:20:00', LEAD_NAME, 'lead', 'Edited', 'Edited the hosting plan claim', 'allowed', 'c_005'],
+    ['2026-11-14T10:12:00', LEAD_NAME, 'lead', 'Accepted', null, 'allowed', 'c_009'],
+    ['2026-11-14T10:10:00', LEAD_NAME, 'lead', 'Accepted', null, 'allowed', 'c_008'],
+    ['2026-11-14T10:05:00', LEAD_NAME, 'lead', 'Accepted', null, 'allowed', 'c_007'],
+    ['2026-11-14T10:00:00', LEAD_NAME, 'lead', 'Accepted', null, 'allowed', 'c_001'],
+  ]
+  for (const [at, actor, role, action, detail, outcome, claimId] of earlier) {
+    auditCount += 1
+    audit.push({ id: `a_${auditCount}`, at, actor, role, action, outcome, claimId, detail })
+  }
 
   const user = () => {
     if (!session) fail('Login required', 401)
