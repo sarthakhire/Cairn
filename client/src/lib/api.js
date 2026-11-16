@@ -38,7 +38,10 @@ function writeSession(next) {
   }
 }
 
-async function request(method, path, { body, form } = {}) {
+const TIMEOUT_MS = 20000
+const LONG_TIMEOUT_MS = 120000 // uploads can be slow on free hosting
+
+async function request(method, path, { body, form, timeoutMs = TIMEOUT_MS } = {}) {
   const headers = {}
   if (session?.token) headers.Authorization = `Bearer ${session.token}`
 
