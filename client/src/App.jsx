@@ -486,7 +486,7 @@ function App() {
         }}
         onReview={handleReview}
         onEdit={handleEdit}
-        canReview={canReview(role)}
+        canReview={canReview(role) && !previewAs}
         error={notice}
         startMode={queueTarget && queueTarget.id === selectedId ? queueTarget.mode : 'idle'}
       />
