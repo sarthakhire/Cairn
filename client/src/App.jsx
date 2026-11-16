@@ -362,7 +362,9 @@ function App() {
               acknowledgements={acknowledgements}
               onAcknowledge={handleAcknowledge}
             />
-
+            {role === 'lead' && (
+              <PreviewBar value={previewAs} onChange={handlePreview} disabled={busy} />
+            )}
             {!locked && (
               <>
                 <StatsRow claims={roleClaims} />
