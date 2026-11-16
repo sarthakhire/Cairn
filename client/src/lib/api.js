@@ -96,7 +96,9 @@ const realApi = {
     writeSession(null)
   },
 
-  claims: () => request('GET', '/api/claims'),
+  // `as` is for the lead only: the server answers with what that incoming role would see.
+  claims: (as) =>
+    request('GET', as ? `/api/claims?as=${encodeURIComponent(as)}` : '/api/claims'),
   // `extra` is either the new statement (a string) or an object with optional
   // statement, reason or override.
   review: (id, action, extra) =>
