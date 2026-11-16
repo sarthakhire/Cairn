@@ -1,11 +1,13 @@
-// Dumps the demo state to data/demo-snapshot.json. Users are NOT included.
-// Run from server/: npm run export:demo   (needs MONGO_URI in server/.env)
+// Dumps the demo state to a snapshot file. Users and passwords are NOT included.
+// Run from server/:  npm run export:demo                       (writes ../backup/demo-snapshot.json)
+//                    npm run export:demo -- --out seed-data/demo-snapshot.json
+// Needs MONGO_URI in server/.env. Restore with: npm run restore:demo
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
 
-const NAMES = ['Claim', 'Source', 'Chunk', 'Version', 'Handover', 'Counter'];
+const NAMES = ['Claim', 'Source', 'Chunk', 'Version', 'Handover', 'Counter', 'AuditLog'];
 
 function loadModel(name) {
   const m = require(path.join(__dirname, '..', 'src', 'models', name));
@@ -27,6 +29,11 @@ async function main() {
     out.collections[name] = docs;
     console.log(`${name}: ${docs.length}`);
   }
+  // Which old user id had which role, so a restore can point references at today's users.
+  // Roles only: no names, emails or password hashes.
+  const users = await loadModel('User').find({}).select('role').lean();
+  out.userRoles = Object.fromEntries(users.map((u) => [String(u._id), u.role]));
+
   // EJSON keeps ObjectIds and dates typed, so a restore can rebuild them exactly.
   const EJSON = mongoose.mongo && mongoose.mongo.BSON && mongoose.mongo.BSON.EJSON;
   const text = EJSON
@@ -40,9 +47,15 @@ async function main() {
       process.exit(1);
     }
   }
-  const dir = path.join(__dirname, '..', '..', 'backup');
-  fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, 'demo-snapshot.json');
+  if (/\$2[aby]\$\d{2}\$/.test(text)) {
+    console.error('Refusing to write: the data contains what looks like a password hash.');
+    process.exit(1);
+  }
+  const i = process.argv.indexOf('--out');
+  const file = i > -1 && process.argv[i + 1]
+    ? path.resolve(process.argv[i + 1])
+    : path.join(__dirname, '..', '..', 'backup', 'demo-snapshot.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text, 'utf8');
   console.log(`Wrote ${file} (${(text.length / 1024).toFixed(1)} KB)`);
   await mongoose.disconnect();

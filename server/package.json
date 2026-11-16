@@ -9,6 +9,7 @@
     "test": "node --test",
     "seed": "node src/seed.js",
     "export:demo": "node scripts/export-demo.js",
+    "restore:demo": "node scripts/restore-demo.js",
     "reverify": "node scripts/reverify.js",
     "seed:planted": "node scripts/seed-planted.js"
   },

@@ -38,6 +38,15 @@ app.use("/api/approval", auth, require("./routes/approval"));
 app.use("/api/audit", auth, requireRole("lead"), require("./routes/audit"));
 app.use("/api/extract", auth, requireRole("lead"), require("./routes/extract"));
 
+// Restores the demo data. Does not exist (404 for everyone) unless ALLOW_DEMO_RESET=true.
+app.use(
+  "/api/demo",
+  (req, res, next) => (process.env.ALLOW_DEMO_RESET === "true" ? next() : res.status(404).json({ error: "Not found" })),
+  auth,
+  requireRole("lead"),
+  require("./routes/demo")
+);
+
 // Anything else gets JSON, not Express's default HTML page.
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
