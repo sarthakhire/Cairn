@@ -113,6 +113,9 @@ const realApi = {
   acknowledge: () => request('POST', '/api/approval/acknowledge'),
 
   audit: () => request('GET', '/api/audit'),
+    // Filtered, paged audit trail (lead only). Returns { rows, nextCursor }.
+  auditEvents: (filters, options) =>
+    request('GET', `/api/audit/events${buildAuditQuery(filters, options)}`),
 
   sources: () => request('GET', '/api/sources'),
   uploadSource(file, sensitivity, formality) {
