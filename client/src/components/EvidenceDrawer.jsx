@@ -358,6 +358,11 @@ function EvidenceDrawer({ claim, allClaims, onClose, onReview, onEdit, canReview
                 <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
                   Evidence
                 </h3>
+                {claim.review?.edited && (
+                  <p className="text-xs text-muted-foreground">
+                    Evidence checked against the original wording.
+                  </p>
+                )}
                 {claim.evidence.length === 0 ? (
                   <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                     No source evidence for this claim.
