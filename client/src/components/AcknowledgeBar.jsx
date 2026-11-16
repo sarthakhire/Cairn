@@ -53,9 +53,10 @@ function AcknowledgeBar({ role, approval, acknowledgements, onAcknowledge, busy 
       <button
         type="button"
         onClick={() => onAcknowledge(role)}
-        className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        disabled={busy}
+        className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        I have read this handover
+        {busy ? 'Saving...' : 'I have read this handover'}
       </button>
     </div>
   )
