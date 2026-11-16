@@ -19,7 +19,7 @@ function findConflictPairs(claims) {
   return pairs
 }
 
-function Side({ claim, otherId, onResolve }) {
+function Side({ claim, otherId, onResolve, busy = false }) {
   const evidence = claim.evidence[0]
 
   return (
@@ -41,7 +41,8 @@ function Side({ claim, otherId, onResolve }) {
       <button
         type="button"
         onClick={() => onResolve(claim.id, otherId)}
-        className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        disabled={busy}
+        className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Keep this one
       </button>
@@ -49,7 +50,7 @@ function Side({ claim, otherId, onResolve }) {
   )
 }
 
-function ConflictResolver({ claims, resolutions, onResolve }) {
+function ConflictResolver({ claims, resolutions, onResolve, busy = false }) {
   const pairs = findConflictPairs(claims)
 
   return (
@@ -68,8 +69,8 @@ function ConflictResolver({ claims, resolutions, onResolve }) {
               will be logged.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Side claim={first} otherId={second.id} onResolve={onResolve} />
-              <Side claim={second} otherId={first.id} onResolve={onResolve} />
+              <Side claim={first} otherId={second.id} onResolve={onResolve} busy={busy} />
+              <Side claim={second} otherId={first.id} onResolve={onResolve} busy={busy} />
             </div>
           </section>
         ))
