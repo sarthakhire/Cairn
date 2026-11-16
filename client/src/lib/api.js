@@ -150,3 +150,5 @@ const realApi = {
 const USE_MOCK = import.meta.env?.DEV === true && import.meta.env?.VITE_USE_MOCK === 'true'
 
 export const api = USE_MOCK ? createMockApi(ApiError) : realApi
+export const API_BASE = BASE
+export const USING_MOCK = USE_MOCK  
