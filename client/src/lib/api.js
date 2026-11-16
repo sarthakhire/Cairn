@@ -53,11 +53,25 @@ async function request(method, path, { body, form, timeoutMs = TIMEOUT_MS } = {}
     payload = JSON.stringify(body)
   }
 
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response
+  let text
   try {
-    response = await fetch(`${BASE}${path}`, { method, headers, body: payload })
-  } catch {
+    response = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: payload,
+      signal: controller.signal,
+    })
+    text = await response.text() // inside the timer, so a stalled body also times out
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError('The server took too long to answer. Try again in a moment.', 0)
+    }
     throw new ApiError('Cannot reach the server. Check your connection and try again.', 0)
+  } finally {
+    clearTimeout(timer)
   }
 
   let data = null
@@ -118,7 +132,7 @@ const realApi = {
   acknowledge: () => request('POST', '/api/approval/acknowledge'),
 
   audit: () => request('GET', '/api/audit'),
-    // Filtered, paged audit trail (lead only). Returns { rows, nextCursor }.
+  // Filtered, paged audit trail (lead only). Returns { rows, nextCursor }.
   auditEvents: (filters, options) =>
     request('GET', `/api/audit/events${buildAuditQuery(filters, options)}`),
 
