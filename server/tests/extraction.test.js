@@ -169,7 +169,7 @@ test("summary reports counts and evidence coverage; the run is audited", async (
   assert.equal(out.evidenceCoverage, Math.round((out.verified / out.claimsCreated) * 100) / 100);
   assert.equal(out.draftsReplaced, 3);
   assert.equal(db.audit[0].action, "extract");
-  assert.deepEqual(db.deletes, [{ "review.state": "draft" }]); // reviewed claims are never deleted
+  assert.deepEqual(db.deletes, [{ "review.state": "draft", planted: { $ne: true } }]); // reviewed and planted claims are never deleted
 });
 
 test("claims that already exist as reviewed claims are not created again", async () => {

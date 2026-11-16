@@ -42,7 +42,7 @@ test("known failures map to clean JSON errors", async () => {
   behaviour = async () => { throw new LlmRateLimitError("The AI model is rate limited or busy."); };
   res = await post("lead");
   assert.equal(res.status, 503);
-  assert.deepEqual(res.body, { error: "The AI model is rate limited or busy." });
+  assert.deepEqual(res.body, { error: "The AI service is busy right now (the free plan has a request limit). Wait a minute and try again." });
 
   behaviour = async () => { throw new Error("secret internal detail"); };
   res = await post("lead");
