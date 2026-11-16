@@ -51,7 +51,11 @@ const matches = (c, f = {}) => {
 };
 Claim.find = (f) => chain(structuredClone(live.filter((c) => matches(c, f))));
 Claim.findOne = (f) => chain(structuredClone(live.find((c) => matches(c, f))) || null);
-Claim.deleteOne = async (f) => { live = live.filter((c) => c.claimId !== f.claimId); };
+Claim.deleteOne = async (f) => {
+  const before = live.length;
+  live = live.filter((c) => c.claimId !== f.claimId);
+  return { deletedCount: before - live.length };
+};
 Claim.create = async (d) => {
   const evidence = d.evidence.map((e) => ({ ...e, chunkId: chunks.find((ch) => String(ch._id) === String(e.chunkId)) }));
   live.push({ ...structuredClone({ ...d, evidence: [] }), evidence });
@@ -82,6 +86,7 @@ Chunk.create = async (d) => {
   chunks.push(chunk);
   return chunk;
 };
+Chunk.deleteOne = async (f) => { chunks = chunks.filter((c) => c._id !== f._id); };
 Counter.findOneAndUpdate = async () => ({ seq: ++counterSeq });
 AuditLog.create = async (d) => { audits.push(structuredClone(d)); };
 
@@ -252,5 +257,27 @@ test("answer: the same answer sent twice makes one claim and one audit row, and 
   assert.equal(live.length, claimCount);
   assert.equal(chunks.length, chunkCount);
   assert.equal(counterSeq, seq); // a refused answer does not use up a claim id
+  assert.equal(audits.filter((a) => a.action === "Gap answered").length, 1);
+});
+test("answer: two overlapping answers to the same question leave one claim, one chunk and one audit row", async () => {
+  reset();
+  const staleOriginal = structuredClone(live.find((c) => c.claimId === "c_003"));
+  const first = await call("post", "/api/claims/c_003/answer", "lead", { answer: "Priya owns the deploy script." });
+  assert.equal(first.status, 201);
+
+  const realFindOne = Claim.findOne;
+  // The second request read the question before the first one removed it.
+  Claim.findOne = (f) => (f.claimId === "c_003" ? chain(structuredClone(staleOriginal)) : realFindOne(f));
+  let second;
+  try {
+    second = await call("post", "/api/claims/c_003/answer", "lead", { answer: "Priya owns the deploy script." });
+  } finally {
+    Claim.findOne = realFindOne;
+  }
+  assert.equal(second.status, 409);
+  assert.match(second.body.error, /already answered/);
+  assert.equal(live.filter((c) => c.statement.includes("Answer:")).length, 1);
+  assert.equal(live.filter((c) => c.claimId === "c_003").length, 0);
+  assert.equal(chunks.length, 1);
   assert.equal(audits.filter((a) => a.action === "Gap answered").length, 1);
 });

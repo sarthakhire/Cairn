@@ -77,8 +77,15 @@ async function answerGap({ claimId, answer, user }) {
     conflictsWith: [],
     inference: false,
   });
-  // Only after the new claim exists, so a failure can never lose the question.
-  await Claim.deleteOne({ claimId });
+    // Only after the new claim exists, so a failure can never lose the question.
+  const removed = await Claim.deleteOne({ claimId });
+  if (removed && removed.deletedCount === 0) {
+    // Another request answered this same question first (an overlapping double click), so the
+    // question is already gone. Undo this request's work and say so.
+    await Claim.deleteOne({ claimId: newId });
+    await Chunk.deleteOne({ _id: chunk._id });
+    throw new AnswerError(409, "This question was already answered");
+  }
 
   return { newId, oldId: claimId, question, text, original, redacted: { ...cleaned.counts, total: cleaned.total } };
 }

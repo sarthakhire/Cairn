@@ -201,7 +201,7 @@ async function runExtraction({
   }
 
   // Swap only now, so a failed run never wipes the existing drafts.
-  const removed = await Claim.deleteMany({ "review.state": "draft" });
+    const removed = await Claim.deleteMany({ "review.state": "draft", planted: { $ne: true } }); // planted test claims are not drafts to replace
   const existing = await Claim.find({}).select("type visibility statement").lean();
   const existingKeys = new Set(existing.map((c) => dupKey(c.visibility, c.type, c.statement)));
 
